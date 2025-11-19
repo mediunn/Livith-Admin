@@ -1,0 +1,347 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextIndex", "fullTextSearch"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model artists {
+  id            Int        @id @default(autoincrement())
+  artist        String     @unique(map: "uk_artist") @db.VarChar(100)
+  category      String?    @db.VarChar(30)
+  detail        String?    @db.Text
+  instagram_url String?    @db.VarChar(2048)
+  keywords      String?    @db.VarChar(100)
+  img_url       String?    @db.VarChar(2048)
+  created_at    DateTime   @default(now())
+  updated_at    DateTime
+  debut_date    String?    @db.VarChar(30)
+  concerts      concerts[]
+}
+
+model banners {
+  id         Int      @id @default(autoincrement())
+  img_url    String?  @db.VarChar(2048)
+  category   String?  @db.VarChar(30)
+  title      String?  @db.VarChar(50)
+  created_at DateTime @default(now())
+  updated_at DateTime
+  content    String?  @db.VarChar(100)
+}
+
+model concert_comments {
+  id         Int      @id @default(autoincrement())
+  concert_id Int
+  user_id    Int
+  content    String   @db.VarChar(500)
+  created_at DateTime @default(now())
+  updated_at DateTime
+  concerts   concerts @relation(fields: [concert_id], references: [id])
+  users      users    @relation(fields: [user_id], references: [id])
+
+  @@index([concert_id], map: "concert_comments_concert_id_fkey")
+  @@index([user_id], map: "concert_comments_user_id_fkey")
+}
+
+model concert_genres {
+  id            Int                 @id @default(autoincrement())
+  concert_id    Int
+  concert_title String              @db.VarChar(300)
+  genre_id      Int
+  name          concert_genres_name
+  concerts      concerts            @relation(fields: [concert_id], references: [id])
+  genres        genres              @relation(fields: [genre_id], references: [id])
+
+  @@unique([concert_id, genre_id])
+  @@index([genre_id], map: "concert_genres_genre_id_fkey")
+}
+
+model concert_info {
+  id         Int      @id @default(autoincrement())
+  concert_id Int
+  category   String   @db.VarChar(30)
+  content    String   @db.VarChar(100)
+  img_url    String?  @db.VarChar(2048)
+  created_at DateTime @default(now())
+  updated_at DateTime
+  concerts   concerts @relation(fields: [concert_id], references: [id])
+
+  @@unique([concert_id, category], map: "uk_concert_category")
+}
+
+model concert_setlists {
+  id            Int                   @id @default(autoincrement())
+  concert_id    Int
+  setlist_id    Int
+  type          concert_setlists_type @default(ONGOING)
+  status        String?               @db.VarChar(10)
+  created_at    DateTime              @default(now())
+  updated_at    DateTime
+  concert_title String?               @db.VarChar(300)
+  setlist_title String?               @db.VarChar(300)
+  concerts      concerts              @relation(fields: [concert_id], references: [id])
+  setlists      setlists              @relation(fields: [setlist_id], references: [id])
+
+  @@index([concert_id, setlist_id])
+  @@index([setlist_id], map: "concert_setlists_setlist_id_fkey")
+}
+
+model concerts {
+  id                      Int                       @id @default(autoincrement())
+  code                    String?                   @unique @db.VarChar(20)
+  title                   String                    @unique(map: "uk_title") @db.VarChar(300)
+  start_date              String                    @db.VarChar(20)
+  end_date                String                    @db.VarChar(20)
+  status                  concerts_status           @default(ONGOING)
+  poster                  String?                   @db.VarChar(2048)
+  artist                  String?                   @db.VarChar(100)
+  created_at              DateTime                  @default(now())
+  updated_at              DateTime
+  artist_id               Int
+  ticket_site             String?                   @db.VarChar(50)
+  ticket_url              String?                   @db.VarChar(2048)
+  venue                   String?                   @db.VarChar(100)
+  introduction            String?                   @db.Text
+  label                   String?                   @db.VarChar(50)
+  concert_comments        concert_comments[]
+  concert_genres          concert_genres[]
+  concert_info            concert_info[]
+  concert_setlists        concert_setlists[]
+  artists                 artists                   @relation(fields: [artist_id], references: [id])
+  cultures                cultures[]
+  home_concert_sections   home_concert_sections[]
+  md                      md[]
+  schedule                schedule[]
+  search_concert_sections search_concert_sections[]
+  users                   users[]
+
+  @@unique([start_date, id])
+  @@unique([title, id])
+  @@index([artist_id], map: "concerts_artist_id_fkey")
+  @@fulltext([title, artist])
+}
+
+model cultures {
+  id         Int      @id @default(autoincrement())
+  concert_id Int
+  content    String   @db.Text
+  img_url    String?  @db.VarChar(2048)
+  created_at DateTime @default(now())
+  updated_at DateTime
+  title      String   @db.Text
+  concerts   concerts @relation(fields: [concert_id], references: [id])
+
+  @@unique([concert_id, title(length: 255)], map: "uk_concert_title")
+  @@index([concert_id])
+}
+
+model genres {
+  id             Int              @id @default(autoincrement())
+  name           genres_name      @unique
+  concert_genres concert_genres[]
+}
+
+model home_concert_sections {
+  id              Int           @id @default(autoincrement())
+  home_section_id Int
+  concert_id      Int
+  section_title   String        @db.VarChar(30)
+  concert_title   String        @db.VarChar(300)
+  sorted_index    Int
+  created_at      DateTime      @default(now())
+  updated_at      DateTime
+  concerts        concerts      @relation(fields: [concert_id], references: [id])
+  home_sections   home_sections @relation(fields: [home_section_id], references: [id])
+
+  @@index([concert_id], map: "home_concert_sections_concert_id_fkey")
+  @@index([home_section_id], map: "home_concert_sections_home_section_id_fkey")
+}
+
+model home_sections {
+  id                    Int                     @id @default(autoincrement())
+  section_title         String                  @db.VarChar(30)
+  created_at            DateTime                @default(now())
+  updated_at            DateTime
+  home_concert_sections home_concert_sections[]
+}
+
+model md {
+  id         Int      @id @default(autoincrement())
+  concert_id Int
+  name       String   @db.VarChar(100)
+  price      String?  @db.VarChar(30)
+  img_url    String?  @db.VarChar(2048)
+  created_at DateTime @default(now())
+  updated_at DateTime
+  concerts   concerts @relation(fields: [concert_id], references: [id])
+
+  @@index([concert_id], map: "md_concert_id_fkey")
+}
+
+model reports {
+  id              Int      @id @default(autoincrement())
+  comment_id      Int?
+  created_at      DateTime @default(now())
+  updated_at      DateTime
+  comment_content String   @db.VarChar(500)
+  comment_user_id Int
+  report_reason   String?  @db.VarChar(300)
+}
+
+model resignations {
+  id         Int      @id @default(autoincrement())
+  content    String   @db.Text
+  created_at DateTime @default(now())
+  updated_at DateTime
+}
+
+model schedule {
+  id           Int            @id @default(autoincrement())
+  concert_id   Int
+  category     String         @db.VarChar(50)
+  scheduled_at DateTime
+  created_at   DateTime       @default(now())
+  updated_at   DateTime
+  type         schedule_type?
+  concerts     concerts       @relation(fields: [concert_id], references: [id])
+
+  @@unique([concert_id, scheduled_at, category], map: "unique_schedule_v2")
+}
+
+model search_concert_sections {
+  id                Int             @id @default(autoincrement())
+  search_section_id Int
+  concert_id        Int
+  section_title     String          @db.VarChar(30)
+  concert_title     String          @db.VarChar(300)
+  sorted_index      Int
+  created_at        DateTime        @default(now())
+  updated_at        DateTime
+  concerts          concerts        @relation(fields: [concert_id], references: [id])
+  search_sections   search_sections @relation(fields: [search_section_id], references: [id])
+
+  @@index([concert_id], map: "search_concert_sections_concert_id_fkey")
+  @@index([search_section_id], map: "search_concert_sections_search_section_id_fkey")
+}
+
+model search_sections {
+  id                      Int                       @id @default(autoincrement())
+  section_title           String                    @db.VarChar(30)
+  created_at              DateTime                  @default(now())
+  updated_at              DateTime
+  search_concert_sections search_concert_sections[]
+}
+
+model setlist_songs {
+  id             Int      @id @default(autoincrement())
+  setlist_id     Int
+  song_id        Int
+  order_index    Int
+  fanchant       String?  @db.Text
+  created_at     DateTime @default(now())
+  setlist_date   String   @db.VarChar(20)
+  setlist_title  String   @db.VarChar(300)
+  song_title     String   @db.VarChar(50)
+  updated_at     DateTime
+  fanchant_point String?  @db.Text
+  setlists       setlists @relation(fields: [setlist_id], references: [id])
+  songs          songs    @relation(fields: [song_id], references: [id])
+
+  @@unique([setlist_id, order_index])
+  @@index([setlist_id, song_id])
+  @@index([song_id], map: "setlist_songs_song_id_fkey")
+}
+
+model setlists {
+  id               Int                @id @default(autoincrement())
+  title            String             @db.VarChar(300)
+  artist           String?            @db.VarChar(100)
+  created_at       DateTime           @default(now())
+  updated_at       DateTime
+  img_url          String?            @db.VarChar(2048)
+  end_date         String             @db.VarChar(20)
+  start_date       String             @db.VarChar(20)
+  venue            String?            @db.VarChar(100)
+  concert_setlists concert_setlists[]
+  setlist_songs    setlist_songs[]
+
+  @@unique([start_date, end_date, id])
+  @@unique([title, artist], map: "uk_title_artist")
+}
+
+model songs {
+  id            Int             @id @default(autoincrement())
+  title         String          @db.VarChar(50)
+  artist        String          @db.VarChar(50)
+  img_url       String?         @db.VarChar(2048)
+  pronunciation String?         @db.Text
+  translation   String?         @db.Text
+  created_at    DateTime        @default(now())
+  updated_at    DateTime
+  lyrics        String?         @db.Text
+  youtube_id    String?         @db.VarChar(200)
+  setlist_songs setlist_songs[]
+
+  @@unique([title, artist], map: "uk_title_artist")
+}
+
+model users {
+  id                  Int                @id @default(autoincrement())
+  interest_concert_id Int?
+  provider            users_provider
+  provider_id         String?            @unique
+  email               String?            @db.VarChar(255)
+  nickname            String?            @unique @db.VarChar(50)
+  marketing_consent   Boolean?
+  created_at          DateTime           @default(now())
+  updated_at          DateTime
+  deleted_at          DateTime?
+  refresh_token       String?            @db.Text
+  concert_comments    concert_comments[]
+  concerts            concerts?          @relation(fields: [interest_concert_id], references: [id])
+
+  @@index([interest_concert_id], map: "users_interest_concert_id_fkey")
+}
+
+enum genres_name {
+  JPOP
+  ROCK_METAL
+  RAP_HIPHOP
+  CLASSIC_JAZZ
+  ACOUSTIC
+  ELECTRONIC
+}
+
+enum users_provider {
+  kakao
+  apple
+}
+
+enum concert_setlists_type {
+  ONGOING
+  PAST
+  EXPECTED
+}
+
+enum concert_genres_name {
+  JPOP
+  ROCK_METAL
+  RAP_HIPHOP
+  CLASSIC_JAZZ
+  ACOUSTIC
+  ELECTRONIC
+}
+
+enum concerts_status {
+  ONGOING
+  UPCOMING
+  COMPLETED
+}
+
+enum schedule_type {
+  CONCERT
+  TICKETING
+}
