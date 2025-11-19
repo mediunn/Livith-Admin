@@ -193,6 +193,7 @@ model reports {
 
 model resignations {
   id         Int      @id @default(autoincrement())
+  user_id    Int
   content    String   @db.Text
   created_at DateTime @default(now())
   updated_at DateTime
