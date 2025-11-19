@@ -44,7 +44,13 @@ export async function createData(table: string, data: any) {
       return { success: false, error: `테이블 '${table}'을 찾을 수 없습니다.` };
     }
 
-    const newRecord = await model.create({ data });
+    // updated_at 자동 추가
+    const dataWithTimestamp = {
+      ...data,
+      updated_at: new Date(),
+    };
+
+    const newRecord = await model.create({ data: dataWithTimestamp });
     revalidatePath('/');
 
     return { success: true, data: newRecord };
@@ -67,9 +73,15 @@ export async function updateData(table: string, id: number, data: any) {
       return { success: false, error: `테이블 '${table}'을 찾을 수 없습니다.` };
     }
 
+    // updated_at 자동 추가
+    const dataWithTimestamp = {
+      ...data,
+      updated_at: new Date(),
+    };
+
     const updatedRecord = await model.update({
       where: { id },
-      data,
+      data: dataWithTimestamp,
     });
     revalidatePath('/');
 

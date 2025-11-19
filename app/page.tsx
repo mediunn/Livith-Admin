@@ -7,6 +7,7 @@ import { SetlistSongsCard } from '@/components/tables/SetlistSongsCard';
 import { ConcertSetlistsCard } from '@/components/tables/ConcertSetlistsCard';
 import { ConfirmSaveModal } from '@/components/modals/ConfirmSaveModal';
 import { createData, updateData } from '@/app/actions';
+import { useToast } from '@/hooks/use-toast';
 
 const tableCategories = {
   core: {
@@ -22,7 +23,7 @@ const tableCategories = {
           { name: 'instagram_url', type: 'text' as const },
           { name: 'keywords', type: 'text' as const },
           { name: 'img_url', type: 'text' as const },
-          { name: 'debut_date', type: 'text' as const },
+          { name: 'debut_date', type: 'select' as const, options: Array.from({ length: 77 }, (_, i) => String(2026 - i)) },
         ],
       },
       concerts: {
@@ -264,6 +265,7 @@ const tableCategories = {
 };
 
 export default function DashboardPage() {
+  const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const allTables = Object.values(tableCategories).flatMap(category =>
@@ -297,9 +299,16 @@ export default function DashboardPage() {
   const handleTempSave = () => {
     try {
       localStorage.setItem('livith_temp_save', JSON.stringify(changes));
-      alert('임시저장되었습니다.');
+      toast({
+        title: '임시저장 완료',
+        description: '변경사항이 임시저장되었습니다.',
+      });
     } catch (error) {
-      alert('임시저장 중 오류가 발생했습니다.');
+      toast({
+        title: '임시저장 실패',
+        description: '임시저장 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -313,6 +322,9 @@ export default function DashboardPage() {
 
   const handleConfirmSave = async () => {
     setIsSaving(true);
+    let hasError = false;
+    const errors: string[] = [];
+
     try {
       for (const [table, rows] of Object.entries(changes)) {
         if (table === 'setlist_songs') {
@@ -330,46 +342,103 @@ export default function DashboardPage() {
               const row = songs[idx];
               const dataWithOrder = { ...row, order_index: idx };
 
-              if (row._isNew) {
-                const { _isNew, _isModified, id, created_at, updated_at, deleted_at, ...data } = dataWithOrder;
-                await createData(table, data);
-              } else if (row._isModified && row.id) {
-                const { _isNew, _isModified, id, created_at, updated_at, deleted_at, ...data } = dataWithOrder;
-                await updateData(table, row.id, data);
+              try {
+                if (row._isNew) {
+                  const { _isNew, _isModified, id, created_at, updated_at, deleted_at, ...data } = dataWithOrder;
+                  const result = await createData(table, data);
+                  if (!result.success) {
+                    hasError = true;
+                    errors.push(`${table} 생성 실패: ${result.error}`);
+                  }
+                } else if (row._isModified && row.id) {
+                  const { _isNew, _isModified, id, created_at, updated_at, deleted_at, ...data } = dataWithOrder;
+                  const result = await updateData(table, row.id, data);
+                  if (!result.success) {
+                    hasError = true;
+                    errors.push(`${table} 수정 실패: ${result.error}`);
+                  }
+                }
+              } catch (err) {
+                hasError = true;
+                errors.push(`${table} 처리 중 오류 발생`);
               }
             }
           }
         } else if (table === 'concert_setlists') {
           for (const row of rows) {
             const dataWithStatus = { ...row, status: '' };
-            if (row._isNew) {
-              const { _isNew, _isModified, id, created_at, updated_at, deleted_at, ...data } = dataWithStatus;
-              await createData(table, data);
-            } else if (row._isModified && row.id) {
-              const { _isNew, _isModified, id, created_at, updated_at, deleted_at, ...data } = dataWithStatus;
-              await updateData(table, row.id, data);
+            try {
+              if (row._isNew) {
+                const { _isNew, _isModified, id, created_at, updated_at, deleted_at, ...data } = dataWithStatus;
+                const result = await createData(table, data);
+                if (!result.success) {
+                  hasError = true;
+                  errors.push(`${table} 생성 실패: ${result.error}`);
+                }
+              } else if (row._isModified && row.id) {
+                const { _isNew, _isModified, id, created_at, updated_at, deleted_at, ...data } = dataWithStatus;
+                const result = await updateData(table, row.id, data);
+                if (!result.success) {
+                  hasError = true;
+                  errors.push(`${table} 수정 실패: ${result.error}`);
+                }
+              }
+            } catch (err) {
+              hasError = true;
+              errors.push(`${table} 처리 중 오류 발생`);
             }
           }
         } else {
           for (const row of rows) {
-            if (row._isNew) {
-              const { _isNew, _isModified, id, created_at, updated_at, deleted_at, ...data } = row;
-              await createData(table, data);
-            } else if (row._isModified && row.id) {
-              const { _isNew, _isModified, id, created_at, updated_at, deleted_at, ...data } = row;
-              await updateData(table, row.id, data);
+            try {
+              if (row._isNew) {
+                const { _isNew, _isModified, id, created_at, updated_at, deleted_at, ...data } = row;
+                const result = await createData(table, data);
+                if (!result.success) {
+                  hasError = true;
+                  errors.push(`${table} 생성 실패: ${result.error}`);
+                }
+              } else if (row._isModified && row.id) {
+                const { _isNew, _isModified, id, created_at, updated_at, deleted_at, ...data } = row;
+                const result = await updateData(table, row.id, data);
+                if (!result.success) {
+                  hasError = true;
+                  errors.push(`${table} 수정 실패: ${result.error}`);
+                }
+              }
+            } catch (err) {
+              hasError = true;
+              errors.push(`${table} 처리 중 오류 발생`);
             }
           }
         }
       }
 
-      // Clear temp save after successful save
-      localStorage.removeItem('livith_temp_save');
+      if (hasError) {
+        toast({
+          title: '일부 데이터 저장 실패',
+          description: errors.length > 0 ? errors.slice(0, 3).join('\n') + (errors.length > 3 ? '\n...' : '') : '일부 데이터 저장 중 오류가 발생했습니다.',
+          variant: 'destructive',
+        });
+      } else {
+        // Clear temp save after successful save
+        localStorage.removeItem('livith_temp_save');
 
-      alert('모든 변경사항이 저장되었습니다.');
-      window.location.reload();
+        toast({
+          title: '저장 완료',
+          description: '모든 변경사항이 성공적으로 저장되었습니다.',
+        });
+
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      }
     } catch (error) {
-      alert('저장 중 오류가 발생했습니다.');
+      toast({
+        title: '저장 실패',
+        description: error instanceof Error ? error.message : '저장 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
     } finally {
       setIsSaving(false);
       setShowConfirmModal(false);

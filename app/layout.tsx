@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { Toaster } from "@/components/ui/toaster";
 
 const notoSansKR = Noto_Sans_KR({
   subsets: ["latin"],
@@ -28,6 +29,7 @@ export default function RootLayout({
             {children}
           </div>
         </div>
+        <Toaster />
       </body>
     </html>
   );

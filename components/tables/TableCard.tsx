@@ -202,7 +202,7 @@ export function TableCard({ title, description, data, fields, onDataChange }: Ta
 
   const isDateField = (fieldName: string): boolean => {
     const dateFields = [
-      'debut_date', 'start_date', 'end_date', 'scheduled_at', 'setlist_date'
+      'start_date', 'end_date', 'scheduled_at', 'setlist_date'
     ];
     return dateFields.includes(fieldName);
   };
