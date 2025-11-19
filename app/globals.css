@@ -2,26 +2,102 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-}
-
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+}
+
+
+
+@layer base {
+  :root {
+    /* Livith Design System - Light Mode (Primary) */
+    --background: 0 0% 100%; /* white */
+    --foreground: 213 13% 10%; /* black-100 */
+
+    --card: 0 0% 100%;
+    --card-foreground: 213 13% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 213 13% 10%;
+
+    /* Primary: Livith Yellow 60 */
+    --primary: 54 100% 67%; /* #FFEB56 */
+    --primary-foreground: 213 13% 10%; /* black-100 */
+
+    /* Secondary: Livith Black 5 */
+    --secondary: 200 11% 95%; /* #F2F4F5 */
+    --secondary-foreground: 213 13% 10%;
+
+    --muted: 200 11% 95%;
+    --muted-foreground: 207 9% 59%; /* black-50 */
+
+    --accent: 54 100% 81%; /* yellow-30 */
+    --accent-foreground: 213 13% 10%;
+
+    /* Destructive: Caution Red */
+    --destructive: 350 83% 47%; /* #E1103A */
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 200 11% 87%; /* black-30 */
+    --input: 200 11% 87%;
+    --ring: 54 100% 67%; /* yellow-60 */
+
+    --chart-1: 54 100% 67%;
+    --chart-2: 213 13% 10%;
+    --chart-3: 350 83% 47%;
+    --chart-4: 6 100% 76%; /* lyrics-translation */
+    --chart-5: 225 100% 90%; /* lyrics-original */
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    /* Livith Design System - Dark Mode */
+    --background: 213 13% 10%; /* black-100 */
+    --foreground: 0 0% 100%;
+
+    --card: 210 13% 16%; /* black-90 */
+    --card-foreground: 0 0% 100%;
+
+    --popover: 210 13% 16%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 54 100% 67%; /* yellow-60 */
+    --primary-foreground: 213 13% 10%;
+
+    --secondary: 211 14% 22%; /* black-80 */
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 211 14% 22%;
+    --muted-foreground: 207 9% 59%;
+
+    --accent: 54 100% 81%;
+    --accent-foreground: 213 13% 10%;
+
+    --destructive: 350 83% 47%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 211 14% 22%;
+    --input: 211 14% 22%;
+    --ring: 54 100% 67%;
+
+    --chart-1: 54 100% 67%;
+    --chart-2: 0 0% 100%;
+    --chart-3: 350 83% 47%;
+    --chart-4: 6 100% 76%;
+    --chart-5: 225 100% 90%;
+  }
+}
+
+
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
   }
 }
