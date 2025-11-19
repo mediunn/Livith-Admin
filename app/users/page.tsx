@@ -1,12 +1,17 @@
-import { getData } from '@/app/actions';
-import { Header } from '@/components/layout/Header';
+import { prisma } from '@/lib/prisma';
 
 export default async function UsersPage() {
-  const result = await getData('users', {
-    orderBy: { created_at: 'desc' },
-  });
+  let users = [];
+  let error = null;
 
-  const users = result.success ? result.data : [];
+  try {
+    users = await prisma.users.findMany({
+      orderBy: { created_at: 'desc' },
+    });
+  } catch (e) {
+    console.error('Users 조회 오류:', e);
+    error = '사용자 정보를 불러오는 중 오류가 발생했습니다.';
+  }
 
   return (
     <div className="flex h-screen">
@@ -28,7 +33,12 @@ export default async function UsersPage() {
               </div>
             </div>
 
-            {users.length === 0 ? (
+            {error ? (
+              <div className="text-center py-12">
+                <p className="text-red-300 mb-2">⚠️ 오류 발생</p>
+                <p className="text-livith-black-30 text-sm">{error}</p>
+              </div>
+            ) : users.length === 0 ? (
               <div className="text-center py-12 text-livith-black-30">
                 등록된 사용자가 없습니다.
               </div>
