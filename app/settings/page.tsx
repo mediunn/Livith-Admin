@@ -18,6 +18,19 @@ interface DBHealthResponse {
 export default function SettingsPage() {
   const [dbHealth, setDbHealth] = useState<DBHealthResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  const sshTunnelCommand = `ssh -i /Users/youz2me/Documents/인증서/livith-key.pem -L 3307:livithdb.c142i2022qs5.ap-northeast-2.rds.amazonaws.com:3306 ubuntu@43.203.48.65 -N &`;
+
+  const copyCommand = async () => {
+    try {
+      await navigator.clipboard.writeText(sshTunnelCommand);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('복사 실패:', err);
+    }
+  };
 
   const checkDatabaseConnection = async () => {
     setIsLoading(true);
@@ -121,6 +134,28 @@ export default function SettingsPage() {
                     <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-4">
                       <p className="text-red-300 text-sm font-medium mb-1">오류</p>
                       <p className="text-red-200 text-sm">{dbHealth.error}</p>
+                    </div>
+                  )}
+
+                  {/* SSH Tunnel Reconnect - Only show in development when disconnected */}
+                  {dbHealth.status === 'disconnected' && (
+                    <div className="bg-livith-yellow-60/10 border border-livith-yellow-60/50 rounded-lg p-4">
+                      <p className="text-livith-yellow-60 text-sm font-medium mb-3">🔧 SSH 터널 재연결 (개발 환경)</p>
+                      <p className="text-livith-black-30 text-xs mb-3">
+                        터미널에서 아래 명령어를 실행하여 SSH 터널을 재연결하세요:
+                      </p>
+                      <div className="bg-livith-black-100 rounded p-3 mb-3">
+                        <code className="text-livith-white text-xs break-all font-mono">
+                          {sshTunnelCommand}
+                        </code>
+                      </div>
+                      <Button
+                        onClick={copyCommand}
+                        size="sm"
+                        className="bg-livith-yellow-60 text-livith-black-100 hover:bg-livith-yellow-30"
+                      >
+                        {copied ? '✓ 복사됨!' : '📋 명령어 복사'}
+                      </Button>
                     </div>
                   )}
 
