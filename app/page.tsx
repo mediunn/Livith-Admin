@@ -22,6 +22,7 @@ interface DashboardStats {
   genres: TableStats;
   cultures: TableStats;
   reports: TableStats;
+  concert_comments: TableStats;
   home_sections: TableStats;
   search_sections: TableStats;
 }
@@ -151,6 +152,8 @@ export default function DashboardPage() {
   const [concertDetail, setConcertDetail] = useState<ConcertDetail | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [userDetail, setUserDetail] = useState<any | null>(null);
+  const [commentDetail, setCommentDetail] = useState<any | null>(null);
   const [addModal, setAddModal] = useState<{
     isOpen: boolean;
     tableName: string;
@@ -167,6 +170,9 @@ export default function DashboardPage() {
   const [sectionConcertQuery, setSectionConcertQuery] = useState('');
   const [sectionConcertResults, setSectionConcertResults] = useState<any[]>([]);
   const [showSectionConcertResults, setShowSectionConcertResults] = useState(false);
+  const [reportCommentQuery, setReportCommentQuery] = useState('');
+  const [reportCommentResults, setReportCommentResults] = useState<any[]>([]);
+  const [showReportCommentResults, setShowReportCommentResults] = useState(false);
   const { toast } = useToast();
 
   // Search concerts for section
@@ -192,6 +198,45 @@ export default function DashboardPage() {
     const debounce = setTimeout(searchConcerts, 300);
     return () => clearTimeout(debounce);
   }, [sectionConcertQuery]);
+
+  // Search comments for report
+  useEffect(() => {
+    const searchComments = async () => {
+      if (reportCommentQuery.length < 2) {
+        setReportCommentResults([]);
+        return;
+      }
+
+      try {
+        // Search from concert_comments
+        const allComments = data?.stats.concert_comments.recent || [];
+        const filtered = allComments.filter((comment: any) =>
+          comment.content?.toLowerCase().includes(reportCommentQuery.toLowerCase()) ||
+          comment.users?.nickname?.toLowerCase().includes(reportCommentQuery.toLowerCase()) ||
+          comment.users?.email?.toLowerCase().includes(reportCommentQuery.toLowerCase()) ||
+          comment.id.toString().includes(reportCommentQuery)
+        );
+        setReportCommentResults(filtered.slice(0, 10));
+        setShowReportCommentResults(true);
+      } catch (error) {
+        console.error('Comment search error:', error);
+      }
+    };
+
+    const debounce = setTimeout(searchComments, 300);
+    return () => clearTimeout(debounce);
+  }, [reportCommentQuery, data]);
+
+  const handleSelectCommentForReport = (comment: any) => {
+    setAddFormData(prev => ({
+      ...prev,
+      comment_id: comment.id,
+      comment_content: comment.content,
+      comment_user_id: comment.user_id,
+    }));
+    setReportCommentQuery('');
+    setShowReportCommentResults(false);
+  };
 
   const handleAddConcertToSection = async (concertId: number) => {
     if (!sectionDetail) return;
@@ -311,6 +356,64 @@ export default function DashboardPage() {
       });
     } finally {
       setIsLoadingDetail(false);
+    }
+  };
+
+  const fetchUserDetail = async (userId: number) => {
+    try {
+      // Find user from the stats data
+      const user = data?.stats.users.recent?.find((u: any) => u.id === userId);
+      if (user) {
+        setUserDetail(user);
+      } else {
+        // Fetch from API if not in recent
+        const response = await fetch(`/api/dashboard/users/${userId}`);
+        const result = await response.json();
+        if (result.success) {
+          setUserDetail(result.data);
+        } else {
+          toast({
+            title: '오류',
+            description: '사용자 정보를 불러올 수 없습니다.',
+            variant: 'destructive',
+          });
+        }
+      }
+    } catch (error) {
+      toast({
+        title: '오류',
+        description: '사용자 정보를 불러올 수 없습니다.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const fetchCommentDetail = async (commentId: number) => {
+    try {
+      // Find comment from the stats data
+      const comment = data?.stats.concert_comments.recent?.find((c: any) => c.id === commentId);
+      if (comment) {
+        setCommentDetail(comment);
+      } else {
+        // Fetch from API if not in recent
+        const response = await fetch(`/api/dashboard/concert_comments/${commentId}`);
+        const result = await response.json();
+        if (result.success) {
+          setCommentDetail(result.data);
+        } else {
+          toast({
+            title: '오류',
+            description: '댓글 정보를 불러올 수 없습니다.',
+            variant: 'destructive',
+          });
+        }
+      }
+    } catch (error) {
+      toast({
+        title: '오류',
+        description: '댓글 정보를 불러올 수 없습니다.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -447,6 +550,10 @@ export default function DashboardPage() {
       }
     });
     setAddFormData(formData);
+    // Reset report comment search state
+    setReportCommentQuery('');
+    setReportCommentResults([]);
+    setShowReportCommentResults(false);
   };
 
   const handleSaveAdd = async () => {
@@ -567,7 +674,7 @@ export default function DashboardPage() {
       key: 'reports',
       name: 'Reports',
       icon: '🚨',
-      columns: ['ID', 'Comment ID', 'Content', 'User ID', 'Reason', 'Created', 'Updated', ''],
+      columns: ['ID', 'Comment ID', 'Content', 'User', 'Reason', 'Created', 'Updated', ''],
       editFields: [
         { key: 'comment_id', label: 'Comment ID', type: 'text' },
         { key: 'comment_content', label: 'Content', type: 'textarea' },
@@ -577,10 +684,51 @@ export default function DashboardPage() {
       renderRow: (item: any) => (
         <>
           <td className="px-4 py-2 text-livith-white whitespace-nowrap">{item.id}</td>
-          <td className="px-4 py-2 text-livith-black-30 whitespace-nowrap">{item.comment_id || '-'}</td>
+          <td
+            className="px-4 py-2 text-livith-yellow-60 whitespace-nowrap cursor-pointer hover:underline"
+            onClick={() => item.comment_id && fetchCommentDetail(item.comment_id)}
+          >
+            {item.comment_id || '-'}
+          </td>
           <td className="px-4 py-2 text-livith-white whitespace-nowrap max-w-[200px] truncate">{item.comment_content || '-'}</td>
-          <td className="px-4 py-2 text-livith-black-30 whitespace-nowrap">{item.comment_user_id}</td>
+          <td
+            className="px-4 py-2 text-livith-yellow-60 whitespace-nowrap cursor-pointer hover:underline"
+            onClick={() => fetchUserDetail(item.comment_user_id)}
+          >
+            {item.users?.nickname || item.users?.email || item.comment_user_id}
+          </td>
           <td className="px-4 py-2 text-livith-black-30 whitespace-nowrap">{item.report_reason || '-'}</td>
+          <td className="px-4 py-2 text-livith-black-30 text-sm whitespace-nowrap">{formatDate(item.created_at)}</td>
+          <td className="px-4 py-2 text-livith-black-30 text-sm whitespace-nowrap">{formatDate(item.updated_at)}</td>
+        </>
+      ),
+    },
+    {
+      key: 'concert_comments',
+      name: 'Comments',
+      icon: '💬',
+      columns: ['ID', 'Concert', 'User', 'Content', 'Created', 'Updated', ''],
+      editFields: [
+        { key: 'concert_id', label: 'Concert ID', type: 'text' },
+        { key: 'user_id', label: 'User ID', type: 'text' },
+        { key: 'content', label: 'Content', type: 'textarea' },
+      ],
+      renderRow: (item: any) => (
+        <>
+          <td className="px-4 py-2 text-livith-white whitespace-nowrap">{item.id}</td>
+          <td
+            className="px-4 py-2 text-livith-yellow-60 whitespace-nowrap cursor-pointer hover:underline max-w-[200px] truncate"
+            onClick={() => fetchConcertDetail(item.concert_id)}
+          >
+            {item.concerts?.title || item.concert_id}
+          </td>
+          <td
+            className="px-4 py-2 text-livith-yellow-60 whitespace-nowrap cursor-pointer hover:underline"
+            onClick={() => fetchUserDetail(item.user_id)}
+          >
+            {item.users?.nickname || item.users?.email || item.user_id}
+          </td>
+          <td className="px-4 py-2 text-livith-white whitespace-nowrap max-w-[300px] truncate">{item.content || '-'}</td>
           <td className="px-4 py-2 text-livith-black-30 text-sm whitespace-nowrap">{formatDate(item.created_at)}</td>
           <td className="px-4 py-2 text-livith-black-30 text-sm whitespace-nowrap">{formatDate(item.updated_at)}</td>
         </>
@@ -1400,6 +1548,47 @@ export default function DashboardPage() {
             </div>
 
             <div className="px-6 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
+              {/* Comment search for reports */}
+              {addModal.tableName === 'reports' && (
+                <div className="relative">
+                  <label className="block text-livith-black-30 text-sm mb-2">
+                    댓글 검색
+                  </label>
+                  <input
+                    type="text"
+                    value={reportCommentQuery}
+                    onChange={(e) => setReportCommentQuery(e.target.value)}
+                    placeholder="댓글 내용, 사용자, ID로 검색..."
+                    className="w-full px-3 py-2 bg-livith-black-90 border border-livith-black-50 rounded text-livith-white focus:outline-none focus:border-livith-yellow-60"
+                  />
+                  {showReportCommentResults && reportCommentResults.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-livith-black-90 border border-livith-black-50 rounded-lg max-h-48 overflow-auto shadow-lg">
+                      {reportCommentResults.map((comment) => (
+                        <button
+                          key={comment.id}
+                          onClick={() => handleSelectCommentForReport(comment)}
+                          className="w-full px-4 py-2 text-left hover:bg-livith-black-60 border-b border-livith-black-50 last:border-b-0"
+                        >
+                          <p className="text-livith-white text-sm truncate">{comment.content}</p>
+                          <p className="text-livith-black-30 text-xs">
+                            ID: {comment.id} | {comment.users?.nickname || comment.users?.email || `User ${comment.user_id}`}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {addFormData.comment_id && (
+                    <div className="mt-2 p-2 bg-livith-black-70 rounded border border-livith-black-50">
+                      <p className="text-livith-yellow-60 text-xs mb-1">선택된 댓글:</p>
+                      <p className="text-livith-white text-sm truncate">{addFormData.comment_content}</p>
+                      <p className="text-livith-black-30 text-xs">
+                        Comment ID: {addFormData.comment_id} | User ID: {addFormData.comment_user_id}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {addModal.fields.map(field => (
                 <div key={field.key}>
                   <label className="block text-livith-black-30 text-sm mb-2">
@@ -1459,6 +1648,122 @@ export default function DashboardPage() {
                 className="bg-livith-yellow-60 text-livith-black-100 hover:bg-livith-yellow-30"
               >
                 {isAdding ? '추가 중...' : '추가'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* User Detail Modal */}
+      {userDetail && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-md mx-4">
+            <div className="px-6 py-4 border-b border-livith-black-50 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-livith-white">👤 사용자 정보</h3>
+              <button
+                onClick={() => setUserDetail(null)}
+                className="text-livith-black-30 hover:text-livith-white text-2xl leading-none"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="p-6 space-y-3">
+              <div>
+                <span className="text-livith-black-30 text-sm">ID:</span>
+                <span className="text-livith-white ml-2">{userDetail.id}</span>
+              </div>
+              <div>
+                <span className="text-livith-black-30 text-sm">닉네임:</span>
+                <span className="text-livith-white ml-2">{userDetail.nickname || '-'}</span>
+              </div>
+              <div>
+                <span className="text-livith-black-30 text-sm">이메일:</span>
+                <span className="text-livith-white ml-2">{userDetail.email || '-'}</span>
+              </div>
+              <div>
+                <span className="text-livith-black-30 text-sm">Provider:</span>
+                <span className="text-livith-white ml-2">{userDetail.provider}</span>
+              </div>
+              <div>
+                <span className="text-livith-black-30 text-sm">마케팅 동의:</span>
+                <span className="text-livith-white ml-2">{userDetail.marketing_consent ? 'Y' : 'N'}</span>
+              </div>
+              <div>
+                <span className="text-livith-black-30 text-sm">가입일:</span>
+                <span className="text-livith-white ml-2">{new Date(userDetail.created_at).toLocaleString('ko-KR')}</span>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-livith-black-50 flex justify-end">
+              <Button
+                onClick={() => setUserDetail(null)}
+                variant="outline"
+                className="bg-livith-black-70 border-livith-black-50 text-livith-white hover:bg-livith-black-60"
+              >
+                닫기
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Comment Detail Modal */}
+      {commentDetail && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-md mx-4">
+            <div className="px-6 py-4 border-b border-livith-black-50 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-livith-white">💬 댓글 정보</h3>
+              <button
+                onClick={() => setCommentDetail(null)}
+                className="text-livith-black-30 hover:text-livith-white text-2xl leading-none"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="p-6 space-y-3">
+              <div>
+                <span className="text-livith-black-30 text-sm">ID:</span>
+                <span className="text-livith-white ml-2">{commentDetail.id}</span>
+              </div>
+              <div>
+                <span className="text-livith-black-30 text-sm">Concert ID:</span>
+                <span
+                  className="text-livith-yellow-60 ml-2 cursor-pointer hover:underline"
+                  onClick={() => {
+                    setCommentDetail(null);
+                    fetchConcertDetail(commentDetail.concert_id);
+                  }}
+                >
+                  {commentDetail.concert_id}
+                </span>
+              </div>
+              <div>
+                <span className="text-livith-black-30 text-sm">User ID:</span>
+                <span
+                  className="text-livith-yellow-60 ml-2 cursor-pointer hover:underline"
+                  onClick={() => {
+                    setCommentDetail(null);
+                    fetchUserDetail(commentDetail.user_id);
+                  }}
+                >
+                  {commentDetail.user_id}
+                </span>
+              </div>
+              <div>
+                <span className="text-livith-black-30 text-sm">내용:</span>
+                <p className="text-livith-white mt-1">{commentDetail.content || '-'}</p>
+              </div>
+              <div>
+                <span className="text-livith-black-30 text-sm">작성일:</span>
+                <span className="text-livith-white ml-2">{new Date(commentDetail.created_at).toLocaleString('ko-KR')}</span>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-livith-black-50 flex justify-end">
+              <Button
+                onClick={() => setCommentDetail(null)}
+                variant="outline"
+                className="bg-livith-black-70 border-livith-black-50 text-livith-white hover:bg-livith-black-60"
+              >
+                닫기
               </Button>
             </div>
           </div>

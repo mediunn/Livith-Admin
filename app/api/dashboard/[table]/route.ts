@@ -167,6 +167,18 @@ export async function POST(
         });
         break;
 
+      case 'concert_comments':
+        result = await prisma.concert_comments.create({
+          data: {
+            concert_id: body.concert_id,
+            user_id: body.user_id,
+            content: body.content,
+            created_at: new Date(),
+            updated_at: new Date(),
+          },
+        });
+        break;
+
       case 'concert_info':
         result = await prisma.concert_info.create({
           data: {

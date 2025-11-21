@@ -2,6 +2,141 @@ import { NextResponse } from 'next/server';
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { table: string; id: string } }
+) {
+  try {
+    const { table, id } = params;
+    const numericId = parseInt(id);
+
+    if (isNaN(numericId)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid ID' },
+        { status: 400 }
+      );
+    }
+
+    let result;
+
+    switch (table) {
+      case 'users':
+        result = await prisma.users.findUnique({
+          where: { id: numericId },
+        });
+        break;
+
+      case 'concerts':
+        result = await prisma.concerts.findUnique({
+          where: { id: numericId },
+        });
+        break;
+
+      case 'artists':
+        result = await prisma.artists.findUnique({
+          where: { id: numericId },
+        });
+        break;
+
+      case 'songs':
+        result = await prisma.songs.findUnique({
+          where: { id: numericId },
+        });
+        break;
+
+      case 'setlists':
+        result = await prisma.setlists.findUnique({
+          where: { id: numericId },
+        });
+        break;
+
+      case 'banners':
+        result = await prisma.banners.findUnique({
+          where: { id: numericId },
+        });
+        break;
+
+      case 'md':
+        result = await prisma.md.findUnique({
+          where: { id: numericId },
+        });
+        break;
+
+      case 'schedules':
+        result = await prisma.schedule.findUnique({
+          where: { id: numericId },
+        });
+        break;
+
+      case 'genres':
+        result = await prisma.genres.findUnique({
+          where: { id: numericId },
+        });
+        break;
+
+      case 'cultures':
+        result = await prisma.cultures.findUnique({
+          where: { id: numericId },
+        });
+        break;
+
+      case 'reports':
+        result = await prisma.reports.findUnique({
+          where: { id: numericId },
+        });
+        break;
+
+      case 'concert_info':
+        result = await prisma.concert_info.findUnique({
+          where: { id: numericId },
+        });
+        break;
+
+      case 'concert_comments':
+        result = await prisma.concert_comments.findUnique({
+          where: { id: numericId },
+        });
+        break;
+
+      case 'home_sections':
+        result = await prisma.home_sections.findUnique({
+          where: { id: numericId },
+        });
+        break;
+
+      case 'search_sections':
+        result = await prisma.search_sections.findUnique({
+          where: { id: numericId },
+        });
+        break;
+
+      default:
+        return NextResponse.json(
+          { success: false, error: 'Unknown table' },
+          { status: 400 }
+        );
+    }
+
+    if (!result) {
+      return NextResponse.json(
+        { success: false, error: 'Record not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error('Fetch error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch data' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: { table: string; id: string } }
@@ -202,6 +337,18 @@ export async function PUT(
           data: {
             section_title: body.section_title,
             section_type: body.section_type || null,
+          },
+        });
+        break;
+
+      case 'concert_comments':
+        result = await prisma.concert_comments.update({
+          where: { id: numericId },
+          data: {
+            concert_id: body.concert_id,
+            user_id: body.user_id,
+            content: body.content,
+            updated_at: new Date(),
           },
         });
         break;

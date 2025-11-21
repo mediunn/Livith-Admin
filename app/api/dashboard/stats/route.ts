@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     const genresPage = parseInt(searchParams.get('genresPage') || '1');
     const culturesPage = parseInt(searchParams.get('culturesPage') || '1');
     const reportsPage = parseInt(searchParams.get('reportsPage') || '1');
+    const concertCommentsPage = parseInt(searchParams.get('concertCommentsPage') || '1');
     const homeSectionsPage = parseInt(searchParams.get('homeSectionsPage') || '1');
     const searchSectionsPage = parseInt(searchParams.get('searchSectionsPage') || '1');
 
@@ -35,6 +36,7 @@ export async function GET(request: NextRequest) {
       genresCount,
       culturesCount,
       reportsCount,
+      concertCommentsCount,
       homeSectionsCount,
       searchSectionsCount,
       recentlyUpdatedConcerts,
@@ -49,6 +51,7 @@ export async function GET(request: NextRequest) {
       recentGenres,
       recentCultures,
       recentReports,
+      recentConcertComments,
       recentHomeSections,
       recentSearchSections,
     ] = await Promise.all([
@@ -63,6 +66,7 @@ export async function GET(request: NextRequest) {
       prisma.genres.count(),
       prisma.cultures.count(),
       prisma.reports.count(),
+      prisma.concert_comments.count(),
       prisma.home_sections.count(),
       prisma.search_sections.count(),
       // Recently updated concerts for top section
@@ -135,6 +139,26 @@ export async function GET(request: NextRequest) {
         skip: (reportsPage - 1) * PAGE_SIZE,
         orderBy: { created_at: 'desc' },
       }),
+      prisma.concert_comments.findMany({
+        take: PAGE_SIZE,
+        skip: (concertCommentsPage - 1) * PAGE_SIZE,
+        orderBy: { created_at: 'desc' },
+        include: {
+          concerts: {
+            select: {
+              id: true,
+              title: true,
+            },
+          },
+          users: {
+            select: {
+              id: true,
+              nickname: true,
+              email: true,
+            },
+          },
+        },
+      }),
       prisma.home_sections.findMany({
         take: PAGE_SIZE,
         skip: (homeSectionsPage - 1) * PAGE_SIZE,
@@ -146,6 +170,21 @@ export async function GET(request: NextRequest) {
         orderBy: { id: 'desc' },
       }),
     ]);
+
+    // Fetch user info for reports
+    const reportUserIds = recentReports.map((r: any) => r.comment_user_id).filter(Boolean);
+    const reportUsers = reportUserIds.length > 0
+      ? await prisma.users.findMany({
+          where: { id: { in: reportUserIds } },
+          select: { id: true, nickname: true, email: true },
+        })
+      : [];
+
+    const userMap = new Map(reportUsers.map(u => [u.id, u]));
+    const recentReportsWithUsers = recentReports.map((report: any) => ({
+      ...report,
+      users: userMap.get(report.comment_user_id) || null,
+    }));
 
     return NextResponse.json({
       success: true,
@@ -194,7 +233,11 @@ export async function GET(request: NextRequest) {
         },
         reports: {
           count: reportsCount,
-          recent: recentReports,
+          recent: recentReportsWithUsers,
+        },
+        concert_comments: {
+          count: concertCommentsCount,
+          recent: recentConcertComments,
         },
         home_sections: {
           count: homeSectionsCount,
