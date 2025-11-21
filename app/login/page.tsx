@@ -46,12 +46,14 @@ export default function LoginPage() {
         <div className="bg-livith-black-90 rounded-lg border border-livith-black-50 p-8">
           {/* Logo/Title */}
           <div className="mb-8 text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-livith-yellow-60 rounded-full mb-4">
-              <span className="text-3xl">📋</span>
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <img
+                src="/logo.png"
+                alt="Livith"
+                className="h-6"
+              />
+              <span className="text-livith-white text-2xl font-bold">Admin</span>
             </div>
-            <h1 className="text-2xl font-bold text-livith-white mb-2">
-              Livith Admin
-            </h1>
             <p className="text-livith-black-30 text-sm">
               관리자 로그인이 필요합니다
             </p>
