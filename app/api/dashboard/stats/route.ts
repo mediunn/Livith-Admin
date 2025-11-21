@@ -1,0 +1,194 @@
+import { NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
+import { prisma } from '@/lib/prisma';
+
+const PAGE_SIZE = 20;
+
+export async function GET(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const usersPage = parseInt(searchParams.get('usersPage') || '1');
+    const concertsPage = parseInt(searchParams.get('concertsPage') || '1');
+    const artistsPage = parseInt(searchParams.get('artistsPage') || '1');
+    const songsPage = parseInt(searchParams.get('songsPage') || '1');
+    const setlistsPage = parseInt(searchParams.get('setlistsPage') || '1');
+    const bannersPage = parseInt(searchParams.get('bannersPage') || '1');
+
+    const mdPage = parseInt(searchParams.get('mdPage') || '1');
+    const schedulesPage = parseInt(searchParams.get('schedulesPage') || '1');
+    const genresPage = parseInt(searchParams.get('genresPage') || '1');
+    const culturesPage = parseInt(searchParams.get('culturesPage') || '1');
+    const reportsPage = parseInt(searchParams.get('reportsPage') || '1');
+
+    // Fetch counts and paginated data for all main tables in parallel
+    const [
+      usersCount,
+      concertsCount,
+      artistsCount,
+      songsCount,
+      setlistsCount,
+      bannersCount,
+      mdCount,
+      schedulesCount,
+      genresCount,
+      culturesCount,
+      reportsCount,
+      recentlyUpdatedConcerts,
+      recentUsers,
+      recentConcerts,
+      recentArtists,
+      recentSongs,
+      recentSetlists,
+      recentBanners,
+      recentMd,
+      recentSchedules,
+      recentGenres,
+      recentCultures,
+      recentReports,
+    ] = await Promise.all([
+      prisma.users.count(),
+      prisma.concerts.count(),
+      prisma.artists.count(),
+      prisma.songs.count(),
+      prisma.setlists.count(),
+      prisma.banners.count(),
+      prisma.md.count(),
+      prisma.schedule.count(),
+      prisma.genres.count(),
+      prisma.cultures.count(),
+      prisma.reports.count(),
+      // Recently updated concerts for top section
+      prisma.concerts.findMany({
+        take: 5,
+        orderBy: { updated_at: 'desc' },
+        select: {
+          id: true,
+          title: true,
+          artist: true,
+          status: true,
+          start_date: true,
+          end_date: true,
+          venue: true,
+          poster: true,
+          updated_at: true,
+        },
+      }),
+      prisma.users.findMany({
+        take: PAGE_SIZE,
+        skip: (usersPage - 1) * PAGE_SIZE,
+        orderBy: { created_at: 'desc' },
+      }),
+      prisma.concerts.findMany({
+        take: PAGE_SIZE,
+        skip: (concertsPage - 1) * PAGE_SIZE,
+        orderBy: { created_at: 'desc' },
+      }),
+      prisma.artists.findMany({
+        take: PAGE_SIZE,
+        skip: (artistsPage - 1) * PAGE_SIZE,
+        orderBy: { created_at: 'desc' },
+      }),
+      prisma.songs.findMany({
+        take: PAGE_SIZE,
+        skip: (songsPage - 1) * PAGE_SIZE,
+        orderBy: { created_at: 'desc' },
+      }),
+      prisma.setlists.findMany({
+        take: PAGE_SIZE,
+        skip: (setlistsPage - 1) * PAGE_SIZE,
+        orderBy: { created_at: 'desc' },
+      }),
+      prisma.banners.findMany({
+        take: PAGE_SIZE,
+        skip: (bannersPage - 1) * PAGE_SIZE,
+        orderBy: { created_at: 'desc' },
+      }),
+      prisma.md.findMany({
+        take: PAGE_SIZE,
+        skip: (mdPage - 1) * PAGE_SIZE,
+        orderBy: { created_at: 'desc' },
+      }),
+      prisma.schedule.findMany({
+        take: PAGE_SIZE,
+        skip: (schedulesPage - 1) * PAGE_SIZE,
+        orderBy: { created_at: 'desc' },
+      }),
+      prisma.genres.findMany({
+        take: PAGE_SIZE,
+        skip: (genresPage - 1) * PAGE_SIZE,
+      }),
+      prisma.cultures.findMany({
+        take: PAGE_SIZE,
+        skip: (culturesPage - 1) * PAGE_SIZE,
+        orderBy: { created_at: 'desc' },
+      }),
+      prisma.reports.findMany({
+        take: PAGE_SIZE,
+        skip: (reportsPage - 1) * PAGE_SIZE,
+        orderBy: { created_at: 'desc' },
+      }),
+    ]);
+
+    return NextResponse.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      recentlyUpdatedConcerts,
+      stats: {
+        users: {
+          count: usersCount,
+          recent: recentUsers,
+        },
+        concerts: {
+          count: concertsCount,
+          recent: recentConcerts,
+        },
+        artists: {
+          count: artistsCount,
+          recent: recentArtists,
+        },
+        songs: {
+          count: songsCount,
+          recent: recentSongs,
+        },
+        setlists: {
+          count: setlistsCount,
+          recent: recentSetlists,
+        },
+        banners: {
+          count: bannersCount,
+          recent: recentBanners,
+        },
+        md: {
+          count: mdCount,
+          recent: recentMd,
+        },
+        schedules: {
+          count: schedulesCount,
+          recent: recentSchedules,
+        },
+        genres: {
+          count: genresCount,
+          recent: recentGenres,
+        },
+        cultures: {
+          count: culturesCount,
+          recent: recentCultures,
+        },
+        reports: {
+          count: reportsCount,
+          recent: recentReports,
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Dashboard stats error:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Failed to fetch dashboard stats',
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 }
+    );
+  }
+}
