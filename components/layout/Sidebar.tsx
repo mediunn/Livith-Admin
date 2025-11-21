@@ -26,13 +26,15 @@ export function Sidebar() {
 
   return (
     <div className="w-60 flex-shrink-0 bg-livith-black-90 min-h-screen p-4 flex flex-col">
-      <div className="mb-8">
-        <h1 className="text-livith-white text-xl font-bold flex items-center gap-2">
-          <span className="bg-livith-yellow-60 text-livith-black-100 w-8 h-8 rounded flex items-center justify-center">
-            📋
-          </span>
-          Livith Admin
-        </h1>
+      <div className="mb-8 mt-[14px]">
+        <div className="flex items-center justify-center gap-3">
+          <img
+            src="/logo.png"
+            alt="Livith"
+            className="h-5"
+          />
+          <span className="text-livith-white text-xl font-bold">Admin</span>
+        </div>
       </div>
 
       <nav className="flex-1">
