@@ -28,9 +28,8 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (response.ok) {
-        // 로그인 성공
-        router.push('/');
-        router.refresh();
+        // 로그인 성공 - 페이지 새로고침으로 리다이렉트
+        window.location.href = '/';
       } else {
         setError(data.error || '비밀번호가 올바르지 않습니다.');
       }
