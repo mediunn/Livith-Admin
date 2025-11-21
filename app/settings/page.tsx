@@ -62,7 +62,7 @@ export default function SettingsPage() {
         </div>
 
         <main className="flex-1 overflow-auto p-6">
-          <div className="max-w-4xl">
+          <div className="w-full">
             {/* Database Connection Status */}
             <div className="bg-livith-black-80 rounded-lg border border-livith-black-50 p-6 mb-6">
               <div className="flex items-center justify-between mb-4">
