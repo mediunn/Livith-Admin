@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: '📊' },
@@ -12,6 +13,16 @@ const navigation = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
 
   return (
     <div className="w-60 bg-livith-black-90 min-h-screen p-4 flex flex-col">
@@ -46,6 +57,16 @@ export function Sidebar() {
           })}
         </ul>
       </nav>
+
+      <div className="pt-4 border-t border-livith-black-50">
+        <Button
+          onClick={handleLogout}
+          variant="ghost"
+          className="w-full justify-start text-livith-black-30 hover:text-livith-white hover:bg-livith-black-80"
+        >
+          🚪 로그아웃
+        </Button>
+      </div>
     </div>
   );
 }
