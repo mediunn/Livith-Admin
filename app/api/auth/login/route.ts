@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       const cookieStore = await cookies();
       cookieStore.set('admin-auth', 'authenticated', {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: false, // HTTP 환경에서도 작동하도록
         sameSite: 'lax',
         maxAge: 60 * 60 * 24 * 7, // 7일
         path: '/',
