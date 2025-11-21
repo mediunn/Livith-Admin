@@ -186,6 +186,26 @@ export async function PUT(
         });
         break;
 
+      case 'home_sections':
+        result = await prisma.home_sections.update({
+          where: { id: numericId },
+          data: {
+            section_title: body.section_title,
+            section_type: body.section_type || null,
+          },
+        });
+        break;
+
+      case 'search_sections':
+        result = await prisma.search_sections.update({
+          where: { id: numericId },
+          data: {
+            section_title: body.section_title,
+            section_type: body.section_type || null,
+          },
+        });
+        break;
+
       default:
         return NextResponse.json(
           { success: false, error: 'Unknown table' },
@@ -249,6 +269,13 @@ export async function DELETE(
         break;
 
       case 'setlists':
+        // Delete related records first
+        await prisma.setlist_songs.deleteMany({
+          where: { setlist_id: numericId },
+        });
+        await prisma.concert_setlists.deleteMany({
+          where: { setlist_id: numericId },
+        });
         result = await prisma.setlists.delete({
           where: { id: numericId },
         });
@@ -304,6 +331,36 @@ export async function DELETE(
 
       case 'concert_info':
         result = await prisma.concert_info.delete({
+          where: { id: numericId },
+        });
+        break;
+
+      case 'concert_comments':
+        result = await prisma.concert_comments.delete({
+          where: { id: numericId },
+        });
+        break;
+
+      case 'home_sections':
+        result = await prisma.home_sections.delete({
+          where: { id: numericId },
+        });
+        break;
+
+      case 'search_sections':
+        result = await prisma.search_sections.delete({
+          where: { id: numericId },
+        });
+        break;
+
+      case 'home_concert_sections':
+        result = await prisma.home_concert_sections.delete({
+          where: { id: numericId },
+        });
+        break;
+
+      case 'search_concert_sections':
+        result = await prisma.search_concert_sections.delete({
           where: { id: numericId },
         });
         break;

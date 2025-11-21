@@ -27,14 +27,14 @@ export function Sidebar() {
   return (
     <div className="w-60 flex-shrink-0 bg-livith-black-90 min-h-screen p-4 flex flex-col">
       <div className="mb-8 mt-[14px]">
-        <div className="flex items-center justify-center gap-3">
+        <Link href="/" className="flex items-center justify-center gap-3 hover:opacity-80 transition-opacity cursor-pointer">
           <img
             src="/logo.png"
             alt="Livith"
             className="h-5"
           />
           <span className="text-livith-white text-xl font-bold">Admin</span>
-        </div>
+        </Link>
       </div>
 
       <nav className="flex-1">

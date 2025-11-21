@@ -22,6 +22,8 @@ interface DashboardStats {
   genres: TableStats;
   cultures: TableStats;
   reports: TableStats;
+  home_sections: TableStats;
+  search_sections: TableStats;
 }
 
 interface RecentConcert {
@@ -94,6 +96,17 @@ interface ConcertDetail {
     content: string;
     img_url: string | null;
   }[];
+  concert_comments: {
+    id: number;
+    content: string;
+    created_at: string;
+    updated_at: string;
+    users: {
+      id: number;
+      nickname: string | null;
+      email: string | null;
+    };
+  }[];
 }
 
 interface DashboardResponse {
@@ -122,6 +135,8 @@ export default function DashboardPage() {
     genres: 1,
     cultures: 1,
     reports: 1,
+    home_sections: 1,
+    search_sections: 1,
   });
   const [loadingTable, setLoadingTable] = useState<string | null>(null);
   const [editModal, setEditModal] = useState<{
@@ -135,7 +150,144 @@ export default function DashboardPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<{ tableName: string; id: number; title: string } | null>(null);
   const [concertDetail, setConcertDetail] = useState<ConcertDetail | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [addModal, setAddModal] = useState<{
+    isOpen: boolean;
+    tableName: string;
+    fields: { key: string; label: string; type: string }[];
+  } | null>(null);
+  const [addFormData, setAddFormData] = useState<Record<string, any>>({});
+  const [isAdding, setIsAdding] = useState(false);
+  const [sectionDetail, setSectionDetail] = useState<{
+    type: 'home' | 'search';
+    section: any;
+    concerts: any[];
+  } | null>(null);
+  const [isLoadingSectionDetail, setIsLoadingSectionDetail] = useState(false);
+  const [sectionConcertQuery, setSectionConcertQuery] = useState('');
+  const [sectionConcertResults, setSectionConcertResults] = useState<any[]>([]);
+  const [showSectionConcertResults, setShowSectionConcertResults] = useState(false);
   const { toast } = useToast();
+
+  // Search concerts for section
+  useEffect(() => {
+    const searchConcerts = async () => {
+      if (sectionConcertQuery.length < 2) {
+        setSectionConcertResults([]);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/dashboard/search?type=concerts&q=${encodeURIComponent(sectionConcertQuery)}`);
+        const result = await response.json();
+        if (result.success) {
+          setSectionConcertResults(result.data);
+          setShowSectionConcertResults(true);
+        }
+      } catch (error) {
+        console.error('Concert search error:', error);
+      }
+    };
+
+    const debounce = setTimeout(searchConcerts, 300);
+    return () => clearTimeout(debounce);
+  }, [sectionConcertQuery]);
+
+  const handleAddConcertToSection = async (concertId: number) => {
+    if (!sectionDetail) return;
+
+    try {
+      const tableName = sectionDetail.type === 'home' ? 'home_concert_sections' : 'search_concert_sections';
+      const sectionIdKey = sectionDetail.type === 'home' ? 'home_section_id' : 'search_section_id';
+
+      const response = await fetch(`/api/dashboard/${tableName}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          [sectionIdKey]: sectionDetail.section.id,
+          concert_id: concertId,
+          sorted_index: sectionDetail.concerts.length,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add concert');
+      }
+
+      toast({
+        title: '추가 완료',
+        description: '콘서트가 섹션에 추가되었습니다.',
+      });
+
+      // Refresh section detail
+      fetchSectionDetail(sectionDetail.type, sectionDetail.section.id);
+      setSectionConcertQuery('');
+      setShowSectionConcertResults(false);
+    } catch (error) {
+      toast({
+        title: '추가 실패',
+        description: '콘서트 추가 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleRemoveConcertFromSection = async (sectionConcertId: number) => {
+    if (!sectionDetail) return;
+
+    try {
+      const tableName = sectionDetail.type === 'home' ? 'home_concert_sections' : 'search_concert_sections';
+
+      const response = await fetch(`/api/dashboard/${tableName}/${sectionConcertId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to remove concert');
+      }
+
+      toast({
+        title: '삭제 완료',
+        description: '콘서트가 섹션에서 제거되었습니다.',
+      });
+
+      // Refresh section detail
+      fetchSectionDetail(sectionDetail.type, sectionDetail.section.id);
+    } catch (error) {
+      toast({
+        title: '삭제 실패',
+        description: '콘서트 삭제 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleSyncSections = async () => {
+    setIsSyncing(true);
+    try {
+      const response = await fetch('/api/dashboard/sync-sections', {
+        method: 'POST',
+      });
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: '동기화 완료',
+          description: `홈/서치 섹션이 업데이트되었습니다.`,
+        });
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      toast({
+        title: '동기화 실패',
+        description: '섹션 업데이트 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const fetchConcertDetail = async (concertId: number) => {
     setIsLoadingDetail(true);
@@ -176,6 +328,8 @@ export default function DashboardPage() {
     params.set('genresPage', currentPages.genres?.toString() || '1');
     params.set('culturesPage', currentPages.cultures?.toString() || '1');
     params.set('reportsPage', currentPages.reports?.toString() || '1');
+    params.set('homeSectionsPage', currentPages.home_sections?.toString() || '1');
+    params.set('searchSectionsPage', currentPages.search_sections?.toString() || '1');
 
     try {
       const response = await fetch(`/api/dashboard/stats?${params.toString()}`);
@@ -282,6 +436,81 @@ export default function DashboardPage() {
     }
   };
 
+  const handleAdd = (tableName: string, fields: { key: string; label: string; type: string }[]) => {
+    setAddModal({ isOpen: true, tableName, fields });
+    const formData: Record<string, any> = {};
+    fields.forEach(field => {
+      if (field.type === 'checkbox') {
+        formData[field.key] = false;
+      } else {
+        formData[field.key] = '';
+      }
+    });
+    setAddFormData(formData);
+  };
+
+  const handleSaveAdd = async () => {
+    if (!addModal) return;
+
+    setIsAdding(true);
+    try {
+      const response = await fetch(`/api/dashboard/${addModal.tableName}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(addFormData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add');
+      }
+
+      toast({
+        title: '추가 완료',
+        description: '데이터가 성공적으로 추가되었습니다.',
+      });
+
+      setAddModal(null);
+      await fetchStats();
+    } catch (error) {
+      toast({
+        title: '추가 실패',
+        description: '데이터 추가 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const fetchSectionDetail = async (type: 'home' | 'search', id: number) => {
+    setIsLoadingSectionDetail(true);
+    try {
+      const response = await fetch(`/api/dashboard/sections/${type}/${id}`);
+      const result = await response.json();
+      if (result.success) {
+        setSectionDetail({
+          type,
+          section: result.data.section,
+          concerts: result.data.concerts,
+        });
+      } else {
+        toast({
+          title: '오류',
+          description: '섹션 상세 정보를 불러올 수 없습니다.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: '오류',
+        description: '섹션 상세 정보를 불러올 수 없습니다.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingSectionDetail(false);
+    }
+  };
+
   const toggleTable = (tableName: string) => {
     setExpandedTables(prev => {
       const next = new Set(prev);
@@ -309,7 +538,8 @@ export default function DashboardPage() {
     return match ? match[1] : null;
   };
 
-  const tableConfigs = [
+  // User Section
+  const userTableConfigs = [
     {
       key: 'users',
       name: 'Users',
@@ -333,6 +563,33 @@ export default function DashboardPage() {
         </>
       ),
     },
+    {
+      key: 'reports',
+      name: 'Reports',
+      icon: '🚨',
+      columns: ['ID', 'Comment ID', 'Content', 'User ID', 'Reason', 'Created', 'Updated', ''],
+      editFields: [
+        { key: 'comment_id', label: 'Comment ID', type: 'text' },
+        { key: 'comment_content', label: 'Content', type: 'textarea' },
+        { key: 'comment_user_id', label: 'User ID', type: 'text' },
+        { key: 'report_reason', label: 'Reason', type: 'text' },
+      ],
+      renderRow: (item: any) => (
+        <>
+          <td className="px-4 py-2 text-livith-white whitespace-nowrap">{item.id}</td>
+          <td className="px-4 py-2 text-livith-black-30 whitespace-nowrap">{item.comment_id || '-'}</td>
+          <td className="px-4 py-2 text-livith-white whitespace-nowrap max-w-[200px] truncate">{item.comment_content || '-'}</td>
+          <td className="px-4 py-2 text-livith-black-30 whitespace-nowrap">{item.comment_user_id}</td>
+          <td className="px-4 py-2 text-livith-black-30 whitespace-nowrap">{item.report_reason || '-'}</td>
+          <td className="px-4 py-2 text-livith-black-30 text-sm whitespace-nowrap">{formatDate(item.created_at)}</td>
+          <td className="px-4 py-2 text-livith-black-30 text-sm whitespace-nowrap">{formatDate(item.updated_at)}</td>
+        </>
+      ),
+    },
+  ];
+
+  // Content Section
+  const tableConfigs = [
     {
       key: 'concerts',
       name: 'Concerts',
@@ -475,6 +732,10 @@ export default function DashboardPage() {
         </>
       ),
     },
+  ];
+
+  // Overview Section (Banners, Home Sections, Search Sections)
+  const overviewTableConfigs = [
     {
       key: 'banners',
       name: 'Banners',
@@ -498,6 +759,50 @@ export default function DashboardPage() {
         </>
       ),
     },
+    {
+      key: 'home_sections',
+      name: 'Home Sections',
+      icon: '🏠',
+      columns: ['ID', 'Section Title', 'Type', ''],
+      editFields: [
+        { key: 'section_title', label: 'Section Title', type: 'text' },
+        { key: 'section_type', label: 'Type', type: 'text' },
+      ],
+      renderRow: (item: any) => (
+        <>
+          <td className="px-4 py-2 text-livith-white whitespace-nowrap">{item.id}</td>
+          <td
+            className="px-4 py-2 text-livith-yellow-60 whitespace-nowrap cursor-pointer hover:underline"
+            onClick={() => fetchSectionDetail('home', item.id)}
+          >
+            {item.section_title || '-'}
+          </td>
+          <td className="px-4 py-2 text-livith-black-30 whitespace-nowrap">{item.section_type || '-'}</td>
+        </>
+      ),
+    },
+    {
+      key: 'search_sections',
+      name: 'Search Sections',
+      icon: '🔍',
+      columns: ['ID', 'Section Title', 'Type', ''],
+      editFields: [
+        { key: 'section_title', label: 'Section Title', type: 'text' },
+        { key: 'section_type', label: 'Type', type: 'text' },
+      ],
+      renderRow: (item: any) => (
+        <>
+          <td className="px-4 py-2 text-livith-white whitespace-nowrap">{item.id}</td>
+          <td
+            className="px-4 py-2 text-livith-yellow-60 whitespace-nowrap cursor-pointer hover:underline"
+            onClick={() => fetchSectionDetail('search', item.id)}
+          >
+            {item.section_title || '-'}
+          </td>
+          <td className="px-4 py-2 text-livith-black-30 whitespace-nowrap">{item.section_type || '-'}</td>
+        </>
+      ),
+    },
   ];
 
   return (
@@ -513,12 +818,22 @@ export default function DashboardPage() {
             {/* Recently Updated Concerts */}
             {!isLoading && data?.recentlyUpdatedConcerts && data.recentlyUpdatedConcerts.length > 0 && (
               <div className="bg-livith-black-80 rounded-lg border border-livith-black-50 p-6 mb-6">
-                <h3 className="text-lg font-semibold text-livith-white mb-4">🔥 최근 업데이트된 콘서트</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-livith-white">🔥 최근 업데이트된 콘서트</h3>
+                  <button
+                    onClick={handleSyncSections}
+                    disabled={isSyncing}
+                    className="px-3 py-1.5 bg-livith-yellow-60 text-livith-black-100 text-sm font-medium rounded hover:bg-livith-yellow-30 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSyncing ? '동기화 중...' : 'DB로 업데이트'}
+                  </button>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                   {data.recentlyUpdatedConcerts.map((concert) => (
                     <div
                       key={concert.id}
-                      className="bg-livith-black-90 rounded-lg border border-livith-black-50 p-4 hover:border-livith-yellow-60 transition-colors"
+                      className="bg-livith-black-90 rounded-lg border border-livith-black-50 p-4 hover:border-livith-yellow-60 transition-colors cursor-pointer"
+                      onClick={() => fetchConcertDetail(concert.id)}
                     >
                       <div className="flex items-start justify-between mb-2">
                         <span className={`px-2 py-0.5 rounded text-xs ${
@@ -603,10 +918,11 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* Table Data Sections */}
+            {/* User Section */}
             {!isLoading && data?.stats && (
-              <div className="space-y-4 w-full overflow-hidden">
-                {tableConfigs.map(config => {
+              <div className="space-y-4 w-full overflow-hidden mb-6">
+                <h3 className="text-lg font-semibold text-livith-white">👥 User Section</h3>
+                {userTableConfigs.map(config => {
                   const tableData = data.stats[config.key as keyof DashboardStats];
                   const isExpanded = expandedTables.has(config.key);
                   const hasRecent = tableData.recent && tableData.recent.length > 0;
@@ -623,6 +939,15 @@ export default function DashboardPage() {
                           <span className="bg-livith-yellow-60/20 text-livith-yellow-60 px-2 py-0.5 rounded text-sm">
                             {tableData.count}
                           </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAdd(config.key, config.editFields);
+                            }}
+                            className="w-5 h-5 bg-livith-yellow-60 text-livith-black-100 text-sm font-bold rounded hover:bg-livith-yellow-30 flex items-center justify-center leading-none"
+                          >
+                            +
+                          </button>
                         </div>
                         <span className="text-livith-black-30 text-lg">
                           {isExpanded ? '▲' : '▼'}
@@ -712,27 +1037,244 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Quick Actions */}
-            <div className="bg-livith-black-80 rounded-lg border border-livith-black-50 p-6 mt-6">
-              <h3 className="text-lg font-semibold text-livith-white mb-4">Quick Actions</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Link href="/add-data">
-                  <Button className="w-full bg-livith-yellow-60 text-livith-black-100 hover:bg-livith-yellow-30">
-                    ➕ Add Data
-                  </Button>
-                </Link>
-                <Link href="/users">
-                  <Button variant="outline" className="w-full bg-livith-black-70 border-livith-black-50 text-livith-white hover:bg-livith-black-60">
-                    👥 View Users
-                  </Button>
-                </Link>
-                <Link href="/settings">
-                  <Button variant="outline" className="w-full bg-livith-black-70 border-livith-black-50 text-livith-white hover:bg-livith-black-60">
-                    ⚙️ Settings
-                  </Button>
-                </Link>
+            {/* Overview Section */}
+            {!isLoading && data?.stats && (
+              <div className="space-y-4 w-full overflow-hidden mb-6">
+                <h3 className="text-lg font-semibold text-livith-white">📊 Overview Section</h3>
+                {overviewTableConfigs.map(config => {
+                  const tableData = data.stats[config.key as keyof DashboardStats];
+                  const isExpanded = expandedTables.has(config.key);
+                  const hasRecent = tableData.recent && tableData.recent.length > 0;
+
+                  return (
+                    <div key={config.key} className="bg-livith-black-80 rounded-lg border border-livith-black-50 overflow-hidden max-w-full">
+                      <button
+                        onClick={() => toggleTable(config.key)}
+                        className="w-full px-6 py-4 flex items-center justify-between hover:bg-livith-black-70 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-xl">{config.icon}</span>
+                          <span className="text-livith-white font-semibold">{config.name}</span>
+                          <span className="bg-livith-yellow-60/20 text-livith-yellow-60 px-2 py-0.5 rounded text-sm">
+                            {tableData.count}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAdd(config.key, config.editFields);
+                            }}
+                            className="w-5 h-5 bg-livith-yellow-60 text-livith-black-100 text-sm font-bold rounded hover:bg-livith-yellow-30 flex items-center justify-center leading-none"
+                          >
+                            +
+                          </button>
+                        </div>
+                        <span className="text-livith-black-30 text-lg">
+                          {isExpanded ? '▲' : '▼'}
+                        </span>
+                      </button>
+
+                      {isExpanded && hasRecent && (
+                        <div className="border-t border-livith-black-50">
+                          <div className="w-full overflow-x-auto overflow-y-auto max-h-[600px] relative">
+                            {loadingTable === config.key && (
+                              <div className="absolute inset-0 bg-livith-black-80/80 flex items-center justify-center z-10">
+                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-livith-yellow-60"></div>
+                              </div>
+                            )}
+                            <table className="w-full min-w-max">
+                              <thead className="bg-livith-black-90 sticky top-0">
+                                <tr>
+                                  {config.columns.map(col => (
+                                    <th key={col} className="px-4 py-3 text-left text-livith-black-30 text-sm font-medium whitespace-nowrap">
+                                      {col}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-livith-black-50">
+                                {tableData.recent!.map((item, idx) => (
+                                  <tr key={idx} className="hover:bg-livith-black-70">
+                                    {config.renderRow(item)}
+                                    <td className="px-4 py-2 whitespace-nowrap">
+                                      <button
+                                        onClick={() => handleEdit(config.key, item, config.editFields)}
+                                        className="text-sm text-livith-black-50 hover:text-livith-black-30 leading-none"
+                                      >
+                                        수정
+                                      </button>
+                                      <button
+                                        onClick={() => setDeleteConfirm({
+                                          tableName: config.key,
+                                          id: item.id,
+                                          title: item.title || item.section_title || `ID: ${item.id}`
+                                        })}
+                                        className="text-sm text-red-500/50 hover:text-red-500 leading-none ml-3"
+                                      >
+                                        삭제
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          <div className="px-6 py-3 bg-livith-black-90 border-t border-livith-black-50 flex items-center justify-between">
+                            <span className="text-livith-black-30 text-sm">
+                              {tableData.count}개 중 {((tablePages[config.key] - 1) * PAGE_SIZE) + 1}-{Math.min(tablePages[config.key] * PAGE_SIZE, tableData.count)}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handlePageChange(config.key, tablePages[config.key] - 1)}
+                                disabled={tablePages[config.key] <= 1 || loadingTable === config.key}
+                                className="px-3 py-1 text-sm bg-livith-black-70 text-livith-white rounded hover:bg-livith-black-60 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                ← 이전
+                              </button>
+                              <span className="text-livith-black-30 text-sm px-2">
+                                {tablePages[config.key]} / {Math.ceil(tableData.count / PAGE_SIZE)}
+                              </span>
+                              <button
+                                onClick={() => handlePageChange(config.key, tablePages[config.key] + 1)}
+                                disabled={tablePages[config.key] >= Math.ceil(tableData.count / PAGE_SIZE) || loadingTable === config.key}
+                                className="px-3 py-1 text-sm bg-livith-black-70 text-livith-white rounded hover:bg-livith-black-60 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                다음 →
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {isExpanded && !hasRecent && (
+                        <div className="border-t border-livith-black-50 px-6 py-8 text-center text-livith-black-30">
+                          데이터가 없습니다.
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            </div>
+            )}
+
+            {/* Content Section */}
+            {!isLoading && data?.stats && (
+              <div className="space-y-4 w-full overflow-hidden">
+                <h3 className="text-lg font-semibold text-livith-white">🎵 Content Section</h3>
+                {tableConfigs.map(config => {
+                  const tableData = data.stats[config.key as keyof DashboardStats];
+                  const isExpanded = expandedTables.has(config.key);
+                  const hasRecent = tableData.recent && tableData.recent.length > 0;
+
+                  return (
+                    <div key={config.key} className="bg-livith-black-80 rounded-lg border border-livith-black-50 overflow-hidden max-w-full">
+                      <button
+                        onClick={() => toggleTable(config.key)}
+                        className="w-full px-6 py-4 flex items-center justify-between hover:bg-livith-black-70 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-xl">{config.icon}</span>
+                          <span className="text-livith-white font-semibold">{config.name}</span>
+                          <span className="bg-livith-yellow-60/20 text-livith-yellow-60 px-2 py-0.5 rounded text-sm">
+                            {tableData.count}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAdd(config.key, config.editFields);
+                            }}
+                            className="w-5 h-5 bg-livith-yellow-60 text-livith-black-100 text-sm font-bold rounded hover:bg-livith-yellow-30 flex items-center justify-center leading-none"
+                          >
+                            +
+                          </button>
+                        </div>
+                        <span className="text-livith-black-30 text-lg">
+                          {isExpanded ? '▲' : '▼'}
+                        </span>
+                      </button>
+
+                      {isExpanded && hasRecent && (
+                        <div className="border-t border-livith-black-50">
+                          <div className="w-full overflow-x-auto overflow-y-auto max-h-[600px] relative">
+                            {loadingTable === config.key && (
+                              <div className="absolute inset-0 bg-livith-black-80/80 flex items-center justify-center z-10">
+                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-livith-yellow-60"></div>
+                              </div>
+                            )}
+                            <table className="w-full min-w-max">
+                              <thead className="bg-livith-black-90 sticky top-0">
+                                <tr>
+                                  {config.columns.map(col => (
+                                    <th key={col} className="px-4 py-3 text-left text-livith-black-30 text-sm font-medium whitespace-nowrap">
+                                      {col}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-livith-black-50">
+                                {tableData.recent!.map((item, idx) => (
+                                  <tr key={idx} className="hover:bg-livith-black-70">
+                                    {config.renderRow(item)}
+                                    <td className="px-4 py-2 whitespace-nowrap">
+                                      <button
+                                        onClick={() => handleEdit(config.key, item, config.editFields)}
+                                        className="text-sm text-livith-black-50 hover:text-livith-black-30 leading-none"
+                                      >
+                                        수정
+                                      </button>
+                                      <button
+                                        onClick={() => setDeleteConfirm({
+                                          tableName: config.key,
+                                          id: item.id,
+                                          title: item.title || item.artist || item.nickname || `ID: ${item.id}`
+                                        })}
+                                        className="text-sm text-red-500/50 hover:text-red-500 leading-none ml-3"
+                                      >
+                                        삭제
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          <div className="px-6 py-3 bg-livith-black-90 border-t border-livith-black-50 flex items-center justify-between">
+                            <span className="text-livith-black-30 text-sm">
+                              {tableData.count}개 중 {((tablePages[config.key] - 1) * PAGE_SIZE) + 1}-{Math.min(tablePages[config.key] * PAGE_SIZE, tableData.count)}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handlePageChange(config.key, tablePages[config.key] - 1)}
+                                disabled={tablePages[config.key] <= 1 || loadingTable === config.key}
+                                className="px-3 py-1 text-sm bg-livith-black-70 text-livith-white rounded hover:bg-livith-black-60 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                ← 이전
+                              </button>
+                              <span className="text-livith-black-30 text-sm px-2">
+                                {tablePages[config.key]} / {Math.ceil(tableData.count / PAGE_SIZE)}
+                              </span>
+                              <button
+                                onClick={() => handlePageChange(config.key, tablePages[config.key] + 1)}
+                                disabled={tablePages[config.key] >= Math.ceil(tableData.count / PAGE_SIZE) || loadingTable === config.key}
+                                className="px-3 py-1 text-sm bg-livith-black-70 text-livith-white rounded hover:bg-livith-black-60 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                다음 →
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {isExpanded && !hasRecent && (
+                        <div className="border-t border-livith-black-50 px-6 py-8 text-center text-livith-black-30">
+                          데이터가 없습니다.
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
           </div>
         </main>
       </div>
@@ -843,6 +1385,213 @@ export default function DashboardPage() {
                 삭제
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Modal */}
+      {addModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-md mx-4">
+            <div className="px-6 py-4 border-b border-livith-black-50">
+              <h3 className="text-lg font-semibold text-livith-white">
+                {addModal.tableName.charAt(0).toUpperCase() + addModal.tableName.slice(1)} 추가
+              </h3>
+            </div>
+
+            <div className="px-6 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
+              {addModal.fields.map(field => (
+                <div key={field.key}>
+                  <label className="block text-livith-black-30 text-sm mb-2">
+                    {field.label}
+                  </label>
+                  {field.type === 'select' && field.key === 'status' ? (
+                    <select
+                      value={addFormData[field.key] || ''}
+                      onChange={(e) => setAddFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
+                      className="w-full px-3 py-2 bg-livith-black-90 border border-livith-black-50 rounded text-livith-white focus:outline-none focus:border-livith-yellow-60"
+                    >
+                      <option value="">선택하세요</option>
+                      <option value="ONGOING">ONGOING</option>
+                      <option value="UPCOMING">UPCOMING</option>
+                      <option value="COMPLETED">COMPLETED</option>
+                    </select>
+                  ) : field.type === 'textarea' ? (
+                    <textarea
+                      value={addFormData[field.key] || ''}
+                      onChange={(e) => setAddFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
+                      rows={4}
+                      className="w-full px-3 py-2 bg-livith-black-90 border border-livith-black-50 rounded text-livith-white focus:outline-none focus:border-livith-yellow-60 resize-y"
+                    />
+                  ) : field.type === 'checkbox' ? (
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={addFormData[field.key] || false}
+                        onChange={(e) => setAddFormData(prev => ({ ...prev, [field.key]: e.target.checked }))}
+                        className="w-4 h-4 rounded border-livith-black-50 bg-livith-black-90 text-livith-yellow-60 focus:ring-livith-yellow-60"
+                      />
+                      <span className="text-livith-white text-sm">활성화</span>
+                    </label>
+                  ) : (
+                    <input
+                      type={field.type}
+                      value={addFormData[field.key] || ''}
+                      onChange={(e) => setAddFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
+                      className="w-full px-3 py-2 bg-livith-black-90 border border-livith-black-50 rounded text-livith-white focus:outline-none focus:border-livith-yellow-60"
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="px-6 py-4 border-t border-livith-black-50 flex justify-end gap-3">
+              <Button
+                onClick={() => setAddModal(null)}
+                variant="outline"
+                className="bg-livith-black-70 border-livith-black-50 text-livith-white hover:bg-livith-black-60"
+              >
+                취소
+              </Button>
+              <Button
+                onClick={handleSaveAdd}
+                disabled={isAdding}
+                className="bg-livith-yellow-60 text-livith-black-100 hover:bg-livith-yellow-30"
+              >
+                {isAdding ? '추가 중...' : '추가'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Section Detail Modal */}
+      {(sectionDetail || isLoadingSectionDetail) && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-2xl mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+            {isLoadingSectionDetail ? (
+              <div className="p-8 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-livith-yellow-60"></div>
+              </div>
+            ) : sectionDetail && (
+              <>
+                <div className="px-6 py-4 border-b border-livith-black-50 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-livith-white">
+                      {sectionDetail.type === 'home' ? '🏠' : '🔍'} {sectionDetail.section.section_title || 'Section'}
+                    </h3>
+                    <p className="text-livith-black-30 text-sm">
+                      {sectionDetail.type === 'home' ? 'Home Section' : 'Search Section'} | {sectionDetail.section.section_type || '-'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setSectionDetail(null)}
+                    className="text-livith-black-30 hover:text-livith-white text-2xl leading-none"
+                  >
+                    &times;
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                  {/* Add Concert Search */}
+                  <div className="bg-livith-black-90 rounded-lg p-4">
+                    <h4 className="text-livith-yellow-60 font-semibold mb-3">콘서트 추가</h4>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={sectionConcertQuery}
+                        onChange={(e) => setSectionConcertQuery(e.target.value)}
+                        placeholder="콘서트 제목 또는 아티스트로 검색..."
+                        className="w-full px-4 py-2 bg-livith-black-70 border border-livith-black-50 rounded text-livith-white focus:outline-none focus:border-livith-yellow-60"
+                      />
+                      {showSectionConcertResults && sectionConcertResults.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-livith-black-70 border border-livith-black-50 rounded-lg max-h-48 overflow-auto">
+                          {sectionConcertResults.map((concert) => (
+                            <button
+                              key={concert.id}
+                              onClick={() => handleAddConcertToSection(concert.id)}
+                              className="w-full px-4 py-2 text-left hover:bg-livith-black-60 border-b border-livith-black-50 last:border-b-0"
+                            >
+                              <p className="text-livith-white text-sm">{concert.title}</p>
+                              <p className="text-livith-black-30 text-xs">
+                                {concert.artist} | {concert.start_date}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Concert List */}
+                  <div className="bg-livith-black-90 rounded-lg p-4">
+                    <h4 className="text-livith-yellow-60 font-semibold mb-3">
+                      포함된 콘서트 ({sectionDetail.concerts.length})
+                    </h4>
+                    {sectionDetail.concerts.length > 0 ? (
+                      <div className="space-y-3">
+                        {sectionDetail.concerts.map((concert, index) => (
+                          <div
+                            key={concert.section_concert_id}
+                            className="flex items-center justify-between p-3 bg-livith-black-70 rounded"
+                          >
+                            <div
+                              className="flex items-center gap-3 flex-1 cursor-pointer hover:opacity-80"
+                              onClick={() => {
+                                setSectionDetail(null);
+                                fetchConcertDetail(concert.id);
+                              }}
+                            >
+                              <span className="text-livith-black-30 text-sm w-6">
+                                {concert.sorted_index !== undefined ? concert.sorted_index + 1 : index + 1}.
+                              </span>
+                              <div>
+                                <p className="text-livith-white font-medium">{concert.title}</p>
+                                <p className="text-livith-black-30 text-sm">
+                                  {concert.artist || '-'} | {concert.start_date} ~ {concert.end_date}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className={`px-2 py-0.5 rounded text-xs ${
+                                concert.status === 'ONGOING' ? 'bg-green-500/20 text-green-300' :
+                                concert.status === 'UPCOMING' ? 'bg-blue-500/20 text-blue-300' :
+                                'bg-gray-500/20 text-gray-300'
+                              }`}>
+                                {concert.status}
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRemoveConcertFromSection(concert.section_concert_id);
+                                }}
+                                className="text-red-500/50 hover:text-red-500 text-sm ml-2"
+                              >
+                                삭제
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-livith-black-30 text-sm text-center py-4">
+                        이 섹션에 포함된 콘서트가 없습니다.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="px-6 py-4 border-t border-livith-black-50 flex justify-end">
+                  <Button
+                    onClick={() => setSectionDetail(null)}
+                    variant="outline"
+                    className="bg-livith-black-70 border-livith-black-50 text-livith-white hover:bg-livith-black-60"
+                  >
+                    닫기
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -1153,6 +1902,44 @@ export default function DashboardPage() {
                       </div>
                     ) : (
                       <p className="text-livith-black-30 text-sm">등록된 콘서트 정보가 없습니다.</p>
+                    )}
+                  </div>
+
+                  {/* Comments */}
+                  <div className="bg-livith-black-90 rounded-lg p-4">
+                    <h4 className="text-livith-yellow-60 font-semibold mb-3">코멘트 ({concertDetail.concert_comments.length})</h4>
+                    {concertDetail.concert_comments.length > 0 ? (
+                      <div className="space-y-3">
+                        {concertDetail.concert_comments.map(comment => (
+                          <div key={comment.id} className="p-3 bg-livith-black-70 rounded">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-livith-white text-sm font-medium">
+                                {comment.users.nickname || comment.users.email || `User #${comment.users.id}`}
+                              </span>
+                              <span className="text-livith-black-30 text-xs">
+                                {new Date(comment.created_at).toLocaleString('ko-KR')}
+                              </span>
+                            </div>
+                            <p className="text-livith-black-30 text-sm">{comment.content}</p>
+                            <div className="flex justify-end mt-2">
+                              <button
+                                onClick={() => {
+                                  setDeleteConfirm({
+                                    tableName: 'concert_comments',
+                                    id: comment.id,
+                                    title: comment.content.substring(0, 30) + '...'
+                                  });
+                                }}
+                                className="text-red-500/50 hover:text-red-500 text-xs"
+                              >
+                                삭제
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-livith-black-30 text-sm">등록된 코멘트가 없습니다.</p>
                     )}
                   </div>
                 </div>

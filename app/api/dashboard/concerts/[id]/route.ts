@@ -34,6 +34,20 @@ export async function GET(
           },
         },
         concert_info: true,
+        concert_comments: {
+          include: {
+            users: {
+              select: {
+                id: true,
+                nickname: true,
+                email: true,
+              },
+            },
+          },
+          orderBy: {
+            created_at: 'desc',
+          },
+        },
       },
     });
 

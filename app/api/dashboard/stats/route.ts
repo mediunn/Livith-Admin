@@ -19,6 +19,8 @@ export async function GET(request: NextRequest) {
     const genresPage = parseInt(searchParams.get('genresPage') || '1');
     const culturesPage = parseInt(searchParams.get('culturesPage') || '1');
     const reportsPage = parseInt(searchParams.get('reportsPage') || '1');
+    const homeSectionsPage = parseInt(searchParams.get('homeSectionsPage') || '1');
+    const searchSectionsPage = parseInt(searchParams.get('searchSectionsPage') || '1');
 
     // Fetch counts and paginated data for all main tables in parallel
     const [
@@ -33,6 +35,8 @@ export async function GET(request: NextRequest) {
       genresCount,
       culturesCount,
       reportsCount,
+      homeSectionsCount,
+      searchSectionsCount,
       recentlyUpdatedConcerts,
       recentUsers,
       recentConcerts,
@@ -45,6 +49,8 @@ export async function GET(request: NextRequest) {
       recentGenres,
       recentCultures,
       recentReports,
+      recentHomeSections,
+      recentSearchSections,
     ] = await Promise.all([
       prisma.users.count(),
       prisma.concerts.count(),
@@ -57,6 +63,8 @@ export async function GET(request: NextRequest) {
       prisma.genres.count(),
       prisma.cultures.count(),
       prisma.reports.count(),
+      prisma.home_sections.count(),
+      prisma.search_sections.count(),
       // Recently updated concerts for top section
       prisma.concerts.findMany({
         take: 5,
@@ -127,6 +135,16 @@ export async function GET(request: NextRequest) {
         skip: (reportsPage - 1) * PAGE_SIZE,
         orderBy: { created_at: 'desc' },
       }),
+      prisma.home_sections.findMany({
+        take: PAGE_SIZE,
+        skip: (homeSectionsPage - 1) * PAGE_SIZE,
+        orderBy: { id: 'desc' },
+      }),
+      prisma.search_sections.findMany({
+        take: PAGE_SIZE,
+        skip: (searchSectionsPage - 1) * PAGE_SIZE,
+        orderBy: { id: 'desc' },
+      }),
     ]);
 
     return NextResponse.json({
@@ -177,6 +195,14 @@ export async function GET(request: NextRequest) {
         reports: {
           count: reportsCount,
           recent: recentReports,
+        },
+        home_sections: {
+          count: homeSectionsCount,
+          recent: recentHomeSections,
+        },
+        search_sections: {
+          count: searchSectionsCount,
+          recent: recentSearchSections,
         },
       },
     });

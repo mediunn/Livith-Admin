@@ -6,6 +6,7 @@ import { TableCard } from '@/components/tables/TableCard';
 import { SetlistSongsCard } from '@/components/tables/SetlistSongsCard';
 import { ConcertSetlistsCard } from '@/components/tables/ConcertSetlistsCard';
 import { ConfirmSaveModal } from '@/components/modals/ConfirmSaveModal';
+import { SetlistCreator } from '@/components/setlist/SetlistCreator';
 import { createData, updateData } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 
@@ -268,6 +269,8 @@ export default function DashboardPage() {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [hasSetlistDraft, setHasSetlistDraft] = useState(false);
   const allTables = Object.values(tableCategories).flatMap(category =>
     Object.keys(category.tables)
   );
@@ -275,6 +278,47 @@ export default function DashboardPage() {
   const [changes, setChanges] = useState<Record<string, any[]>>(
     allTables.reduce((acc, table) => ({ ...acc, [table]: [] }), {})
   );
+
+  // Check for setlist draft on mount and when storage changes
+  useEffect(() => {
+    const checkSetlistDraft = () => {
+      const draft = localStorage.getItem('setlist-draft');
+      if (draft) {
+        try {
+          const parsed = JSON.parse(draft);
+          setHasSetlistDraft(parsed.selectedConcert || (parsed.songs && parsed.songs.length > 0));
+        } catch {
+          setHasSetlistDraft(false);
+        }
+      } else {
+        setHasSetlistDraft(false);
+      }
+    };
+
+    checkSetlistDraft();
+
+    // Listen for storage changes
+    window.addEventListener('storage', checkSetlistDraft);
+    // Also check periodically for same-tab changes
+    const interval = setInterval(checkSetlistDraft, 1000);
+
+    return () => {
+      window.removeEventListener('storage', checkSetlistDraft);
+      clearInterval(interval);
+    };
+  }, []);
+
+  const toggleCategory = (categoryKey: string) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(categoryKey)) {
+        next.delete(categoryKey);
+      } else {
+        next.add(categoryKey);
+      }
+      return next;
+    });
+  };
 
   // Load temp save on mount
   useEffect(() => {
@@ -310,6 +354,20 @@ export default function DashboardPage() {
         variant: 'destructive',
       });
     }
+  };
+
+  const handleReset = () => {
+    // Reset all changes
+    setChanges(allTables.reduce((acc, table) => ({ ...acc, [table]: [] }), {}));
+    // Clear localStorage
+    localStorage.removeItem('livith_temp_save');
+    localStorage.removeItem('setlist-draft');
+    toast({
+      title: '초기화 완료',
+      description: '모든 임시저장 내용이 삭제되었습니다.',
+    });
+    // Force reload to reset SetlistCreator state
+    window.location.reload();
   };
 
   const handleOpenConfirmModal = () => {
@@ -445,9 +503,10 @@ export default function DashboardPage() {
     }
   };
 
-  const hasChanges = Object.values(changes).some(
+  const hasTableChanges = Object.values(changes).some(
     (data) => data.some((row) => row._isNew || row._isModified)
   );
+  const hasChanges = hasTableChanges || hasSetlistDraft;
 
   return (
     <div className="flex h-screen">
@@ -457,57 +516,75 @@ export default function DashboardPage() {
           description="Add and manage data across all tables"
           onSaveAll={handleOpenConfirmModal}
           onTempSave={handleTempSave}
+          onReset={handleReset}
           hasChanges={hasChanges}
           isSaving={isSaving}
         />
 
         <main className="flex-1 overflow-auto p-6">
-          <div className="flex flex-col gap-8 w-full">
-            {Object.entries(tableCategories).map(([categoryKey, category]) => (
-              <div key={categoryKey} className="flex flex-col gap-4">
-                <div className="border-b border-livith-black-50 pb-2">
-                  <h2 className="text-xl font-bold text-livith-yellow-60">{category.title}</h2>
+          <div className="flex flex-col gap-6 w-full">
+            {/* Setlist Creator - Main Feature */}
+            <SetlistCreator />
+
+            {/* Table Categories */}
+            {Object.entries(tableCategories).map(([categoryKey, category]) => {
+              const isExpanded = expandedCategories.has(categoryKey);
+
+              return (
+                <div key={categoryKey} className="bg-livith-black-80 rounded-lg border border-livith-black-50 overflow-hidden">
+                  <button
+                    onClick={() => toggleCategory(categoryKey)}
+                    className="w-full px-6 py-4 flex items-center justify-between hover:bg-livith-black-70 transition-colors"
+                  >
+                    <h2 className="text-lg font-bold text-livith-yellow-60">{category.title}</h2>
+                    <span className="text-livith-black-30 text-lg">
+                      {isExpanded ? '▲' : '▼'}
+                    </span>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="border-t border-livith-black-50 p-6 flex flex-col gap-6">
+                      {Object.entries(category.tables).map(([tableName, config]) => {
+                        if (tableName === 'setlist_songs') {
+                          return (
+                            <SetlistSongsCard
+                              key={tableName}
+                              title={config.title}
+                              description={config.description}
+                              data={[]}
+                              fields={config.fields}
+                              onDataChange={(data) => handleDataChange(tableName, data)}
+                            />
+                          );
+                        } else if (tableName === 'concert_setlists') {
+                          return (
+                            <ConcertSetlistsCard
+                              key={tableName}
+                              title={config.title}
+                              description={config.description}
+                              data={[]}
+                              fields={config.fields}
+                              onDataChange={(data) => handleDataChange(tableName, data)}
+                            />
+                          );
+                        } else {
+                          return (
+                            <TableCard
+                              key={tableName}
+                              title={config.title}
+                              description={config.description}
+                              data={[]}
+                              fields={config.fields}
+                              onDataChange={(data) => handleDataChange(tableName, data)}
+                            />
+                          );
+                        }
+                      })}
+                    </div>
+                  )}
                 </div>
-                <div className="flex flex-col gap-6">
-                  {Object.entries(category.tables).map(([tableName, config]) => {
-                    if (tableName === 'setlist_songs') {
-                      return (
-                        <SetlistSongsCard
-                          key={tableName}
-                          title={config.title}
-                          description={config.description}
-                          data={[]}
-                          fields={config.fields}
-                          onDataChange={(data) => handleDataChange(tableName, data)}
-                        />
-                      );
-                    } else if (tableName === 'concert_setlists') {
-                      return (
-                        <ConcertSetlistsCard
-                          key={tableName}
-                          title={config.title}
-                          description={config.description}
-                          data={[]}
-                          fields={config.fields}
-                          onDataChange={(data) => handleDataChange(tableName, data)}
-                        />
-                      );
-                    } else {
-                      return (
-                        <TableCard
-                          key={tableName}
-                          title={config.title}
-                          description={config.description}
-                          data={[]}
-                          fields={config.fields}
-                          onDataChange={(data) => handleDataChange(tableName, data)}
-                        />
-                      );
-                    }
-                  })}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </main>
       </div>
