@@ -238,7 +238,7 @@ export default function DashboardPage() {
     setShowReportCommentResults(false);
   };
 
-  const handleAddConcertToSection = async (concertId: number) => {
+  const handleAddConcertToSection = async (concert: { id: number; title: string }) => {
     if (!sectionDetail) return;
 
     try {
@@ -250,7 +250,9 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           [sectionIdKey]: sectionDetail.section.id,
-          concert_id: concertId,
+          concert_id: concert.id,
+          section_title: sectionDetail.section.section_title,
+          concert_title: concert.title,
           sorted_index: sectionDetail.concerts.length,
         }),
       });
@@ -1807,17 +1809,17 @@ export default function DashboardPage() {
                         value={sectionConcertQuery}
                         onChange={(e) => setSectionConcertQuery(e.target.value)}
                         placeholder="콘서트 제목 또는 아티스트로 검색..."
-                        className="w-full px-4 py-2 bg-livith-black-70 border border-livith-black-50 rounded text-livith-white focus:outline-none focus:border-livith-yellow-60"
+                        className="w-full px-4 py-2 bg-livith-black-70 border border-livith-black-50 rounded text-black focus:outline-none focus:border-livith-yellow-60 placeholder:text-livith-black-30"
                       />
                       {showSectionConcertResults && sectionConcertResults.length > 0 && (
                         <div className="absolute z-10 w-full mt-1 bg-livith-black-70 border border-livith-black-50 rounded-lg max-h-48 overflow-auto">
                           {sectionConcertResults.map((concert) => (
                             <button
                               key={concert.id}
-                              onClick={() => handleAddConcertToSection(concert.id)}
-                              className="w-full px-4 py-2 text-left hover:bg-livith-black-60 border-b border-livith-black-50 last:border-b-0"
+                              onClick={() => handleAddConcertToSection({ id: concert.id, title: concert.title })}
+                              className="w-full px-4 py-2 text-left hover:bg-livith-black-60 border-b border-livith-black-50 last:border-b-0 text-livith-white"
                             >
-                              <p className="text-livith-white text-sm">{concert.title}</p>
+                              <p className="text-sm">{concert.title}</p>
                               <p className="text-livith-black-30 text-xs">
                                 {concert.artist} | {concert.start_date}
                               </p>

@@ -326,7 +326,7 @@ export async function PUT(
           where: { id: numericId },
           data: {
             section_title: body.section_title,
-            section_type: body.section_type || null,
+            updated_at: new Date(),
           },
         });
         break;
@@ -336,7 +336,7 @@ export async function PUT(
           where: { id: numericId },
           data: {
             section_title: body.section_title,
-            section_type: body.section_type || null,
+            updated_at: new Date(),
           },
         });
         break;
@@ -489,27 +489,69 @@ export async function DELETE(
         break;
 
       case 'home_sections':
+        // Delete related home_concert_sections first
+        await prisma.home_concert_sections.deleteMany({
+          where: { home_section_id: numericId },
+        });
         result = await prisma.home_sections.delete({
           where: { id: numericId },
         });
         break;
 
       case 'search_sections':
+        // Delete related search_concert_sections first
+        await prisma.search_concert_sections.deleteMany({
+          where: { search_section_id: numericId },
+        });
         result = await prisma.search_sections.delete({
           where: { id: numericId },
         });
         break;
 
       case 'home_concert_sections':
+        // Get the section_id before deleting
+        const homeItem = await prisma.home_concert_sections.findUnique({
+          where: { id: numericId },
+        });
         result = await prisma.home_concert_sections.delete({
           where: { id: numericId },
         });
+        // Reorder remaining items
+        if (homeItem) {
+          const remainingHomeItems = await prisma.home_concert_sections.findMany({
+            where: { home_section_id: homeItem.home_section_id },
+            orderBy: { sorted_index: 'asc' },
+          });
+          for (let i = 0; i < remainingHomeItems.length; i++) {
+            await prisma.home_concert_sections.update({
+              where: { id: remainingHomeItems[i].id },
+              data: { sorted_index: i, updated_at: new Date() },
+            });
+          }
+        }
         break;
 
       case 'search_concert_sections':
+        // Get the section_id before deleting
+        const searchItem = await prisma.search_concert_sections.findUnique({
+          where: { id: numericId },
+        });
         result = await prisma.search_concert_sections.delete({
           where: { id: numericId },
         });
+        // Reorder remaining items
+        if (searchItem) {
+          const remainingSearchItems = await prisma.search_concert_sections.findMany({
+            where: { search_section_id: searchItem.search_section_id },
+            orderBy: { sorted_index: 'asc' },
+          });
+          for (let i = 0; i < remainingSearchItems.length; i++) {
+            await prisma.search_concert_sections.update({
+              where: { id: remainingSearchItems[i].id },
+              data: { sorted_index: i, updated_at: new Date() },
+            });
+          }
+        }
         break;
 
       default:

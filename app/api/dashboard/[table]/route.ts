@@ -196,7 +196,7 @@ export async function POST(
         result = await prisma.home_sections.create({
           data: {
             section_title: body.section_title,
-            section_type: body.section_type || null,
+            updated_at: new Date(),
           },
         });
         break;
@@ -205,7 +205,7 @@ export async function POST(
         result = await prisma.search_sections.create({
           data: {
             section_title: body.section_title,
-            section_type: body.section_type || null,
+            updated_at: new Date(),
           },
         });
         break;
@@ -215,9 +215,23 @@ export async function POST(
           data: {
             home_section_id: body.home_section_id,
             concert_id: body.concert_id,
+            section_title: body.section_title,
+            concert_title: body.concert_title,
             sorted_index: body.sorted_index || 0,
+            updated_at: new Date(),
           },
         });
+        // Reorder all items in this section
+        const homeItems = await prisma.home_concert_sections.findMany({
+          where: { home_section_id: body.home_section_id },
+          orderBy: [{ sorted_index: 'asc' }, { id: 'asc' }],
+        });
+        for (let i = 0; i < homeItems.length; i++) {
+          await prisma.home_concert_sections.update({
+            where: { id: homeItems[i].id },
+            data: { sorted_index: i, updated_at: new Date() },
+          });
+        }
         break;
 
       case 'search_concert_sections':
@@ -225,9 +239,23 @@ export async function POST(
           data: {
             search_section_id: body.search_section_id,
             concert_id: body.concert_id,
+            section_title: body.section_title,
+            concert_title: body.concert_title,
             sorted_index: body.sorted_index || 0,
+            updated_at: new Date(),
           },
         });
+        // Reorder all items in this section
+        const searchItems = await prisma.search_concert_sections.findMany({
+          where: { search_section_id: body.search_section_id },
+          orderBy: [{ sorted_index: 'asc' }, { id: 'asc' }],
+        });
+        for (let i = 0; i < searchItems.length; i++) {
+          await prisma.search_concert_sections.update({
+            where: { id: searchItems[i].id },
+            data: { sorted_index: i, updated_at: new Date() },
+          });
+        }
         break;
 
       default:

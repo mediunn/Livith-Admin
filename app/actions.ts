@@ -56,7 +56,8 @@ export async function createData(table: string, data: any) {
     return { success: true, data: newRecord };
   } catch (error) {
     console.error('createData 오류:', error);
-    return { success: false, error: '데이터 생성 중 오류가 발생했습니다.' };
+    const errorMessage = error instanceof Error ? error.message : '데이터 생성 중 오류가 발생했습니다.';
+    return { success: false, error: errorMessage };
   }
 }
 
