@@ -110,6 +110,43 @@ interface ConcertDetail {
   }[];
 }
 
+interface SetlistDetail {
+  id: number;
+  title: string;
+  artist: string | null;
+  start_date: string;
+  end_date: string;
+  venue: string | null;
+  img_url: string | null;
+  setlist_songs: {
+    id: number;
+    order_index: number;
+    setlist_date: string;
+    fanchant: string | null;
+    fanchant_point: string | null;
+    songs: {
+      id: number;
+      title: string;
+      artist: string;
+      img_url: string | null;
+    };
+  }[];
+  concert_setlists: {
+    id: number;
+    type: string;
+    status: string | null;
+    concerts: {
+      id: number;
+      title: string;
+      artist: string | null;
+      start_date: string;
+      end_date: string;
+      venue: string | null;
+      status: string;
+    };
+  }[];
+}
+
 interface DashboardResponse {
   success: boolean;
   timestamp: string;
@@ -150,6 +187,12 @@ export default function DashboardPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ tableName: string; id: number; title: string } | null>(null);
   const [concertDetail, setConcertDetail] = useState<ConcertDetail | null>(null);
+  const [setlistDetail, setSetlistDetail] = useState<SetlistDetail | null>(null);
+  const [artistDetail, setArtistDetail] = useState<any | null>(null);
+  const [songDetail, setSongDetail] = useState<any | null>(null);
+  const [isEditingSong, setIsEditingSong] = useState(false);
+  const [editedSong, setEditedSong] = useState<any | null>(null);
+  const [isSavingSong, setIsSavingSong] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [userDetail, setUserDetail] = useState<any | null>(null);
@@ -173,6 +216,17 @@ export default function DashboardPage() {
   const [reportCommentQuery, setReportCommentQuery] = useState('');
   const [reportCommentResults, setReportCommentResults] = useState<any[]>([]);
   const [showReportCommentResults, setShowReportCommentResults] = useState(false);
+  const [addConcertQuery, setAddConcertQuery] = useState('');
+  const [addConcertResults, setAddConcertResults] = useState<any[]>([]);
+  const [showAddConcertResults, setShowAddConcertResults] = useState(false);
+  const [addUserQuery, setAddUserQuery] = useState('');
+  const [addUserResults, setAddUserResults] = useState<any[]>([]);
+  const [showAddUserResults, setShowAddUserResults] = useState(false);
+  const [setlistSongQuery, setSetlistSongQuery] = useState('');
+  const [setlistSongResults, setSetlistSongResults] = useState<any[]>([]);
+  const [showSetlistSongResults, setShowSetlistSongResults] = useState(false);
+  const [draggedSongId, setDraggedSongId] = useState<number | null>(null);
+  const [dragOverSongId, setDragOverSongId] = useState<number | null>(null);
   const { toast } = useToast();
 
   // Search concerts for section
@@ -226,6 +280,81 @@ export default function DashboardPage() {
     const debounce = setTimeout(searchComments, 300);
     return () => clearTimeout(debounce);
   }, [reportCommentQuery, data]);
+
+  // Search concerts for add modal
+  useEffect(() => {
+    const searchConcerts = async () => {
+      if (addConcertQuery.length < 2) {
+        setAddConcertResults([]);
+        setShowAddConcertResults(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/dashboard/search?type=concerts&q=${encodeURIComponent(addConcertQuery)}`);
+        const result = await response.json();
+        if (result.success) {
+          setAddConcertResults(result.data);
+          setShowAddConcertResults(true);
+        }
+      } catch (error) {
+        console.error('Concert search error:', error);
+      }
+    };
+
+    const debounce = setTimeout(searchConcerts, 300);
+    return () => clearTimeout(debounce);
+  }, [addConcertQuery]);
+
+  // Search users for add modal
+  useEffect(() => {
+    const searchUsers = async () => {
+      if (addUserQuery.length < 2) {
+        setAddUserResults([]);
+        setShowAddUserResults(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/dashboard/search?type=users&q=${encodeURIComponent(addUserQuery)}`);
+        const result = await response.json();
+        if (result.success) {
+          setAddUserResults(result.data);
+          setShowAddUserResults(true);
+        }
+      } catch (error) {
+        console.error('User search error:', error);
+      }
+    };
+
+    const debounce = setTimeout(searchUsers, 300);
+    return () => clearTimeout(debounce);
+  }, [addUserQuery]);
+
+  // Search songs for setlist
+  useEffect(() => {
+    const searchSongs = async () => {
+      if (setlistSongQuery.length < 2) {
+        setSetlistSongResults([]);
+        setShowSetlistSongResults(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/dashboard/search?type=songs&q=${encodeURIComponent(setlistSongQuery)}`);
+        const result = await response.json();
+        if (result.success) {
+          setSetlistSongResults(result.data);
+          setShowSetlistSongResults(true);
+        }
+      } catch (error) {
+        console.error('Song search error:', error);
+      }
+    };
+
+    const debounce = setTimeout(searchSongs, 300);
+    return () => clearTimeout(debounce);
+  }, [setlistSongQuery]);
 
   const handleSelectCommentForReport = (comment: any) => {
     setAddFormData(prev => ({
@@ -309,6 +438,179 @@ export default function DashboardPage() {
     }
   };
 
+  const handleAddSongToSetlist = async (song: { id: number; title: string; artist: string }) => {
+    if (!setlistDetail) return;
+
+    try {
+      // Find max order_index and add 1
+      const maxOrderIndex = setlistDetail.setlist_songs.length > 0
+        ? Math.max(...setlistDetail.setlist_songs.map(s => s.order_index))
+        : -1;
+      const newOrderIndex = maxOrderIndex + 1;
+
+      const response = await fetch('/api/dashboard/setlist_songs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          setlist_id: setlistDetail.id,
+          song_id: song.id,
+          order_index: newOrderIndex,
+          setlist_date: setlistDetail.start_date,
+          setlist_title: setlistDetail.title,
+          song_title: song.title,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error('Failed to add song');
+      }
+
+      // Optimistic update - add to local state
+      const newSong = {
+        id: result.data.id,
+        order_index: newOrderIndex,
+        setlist_date: setlistDetail.start_date,
+        fanchant: null,
+        fanchant_point: null,
+        songs: {
+          id: song.id,
+          title: song.title,
+          artist: song.artist,
+          img_url: null,
+        },
+      };
+
+      setSetlistDetail({
+        ...setlistDetail,
+        setlist_songs: [...setlistDetail.setlist_songs, newSong],
+      });
+
+      toast({
+        title: '추가 완료',
+        description: '곡이 셋리스트에 추가되었습니다.',
+      });
+
+      setSetlistSongQuery('');
+      setSetlistSongResults([]);
+      setShowSetlistSongResults(false);
+    } catch (error) {
+      toast({
+        title: '추가 실패',
+        description: '곡 추가 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, songId: number) => {
+    setDraggedSongId(songId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent, songId: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (songId !== draggedSongId) {
+      setDragOverSongId(songId);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverSongId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedSongId(null);
+    setDragOverSongId(null);
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetSongId: number) => {
+    e.preventDefault();
+    setDragOverSongId(null);
+
+    if (!setlistDetail || !draggedSongId || draggedSongId === targetSongId) {
+      setDraggedSongId(null);
+      return;
+    }
+
+    const songs = [...setlistDetail.setlist_songs];
+    const draggedSong = songs.find(s => s.id === draggedSongId);
+    const targetSong = songs.find(s => s.id === targetSongId);
+
+    if (!draggedSong || !targetSong) {
+      setDraggedSongId(null);
+      return;
+    }
+
+    try {
+      // Swap order_index using a temporary value to avoid unique constraint
+      const draggedNewIndex = targetSong.order_index;
+      const targetNewIndex = draggedSong.order_index;
+      const tempIndex = -1; // Temporary index
+
+      // Optimistic update - update local state immediately
+      const updatedSongs = songs.map(s => {
+        if (s.id === draggedSong.id) {
+          return { ...s, order_index: draggedNewIndex };
+        }
+        if (s.id === targetSong.id) {
+          return { ...s, order_index: targetNewIndex };
+        }
+        return s;
+      }).sort((a, b) => a.order_index - b.order_index);
+
+      setSetlistDetail({
+        ...setlistDetail,
+        setlist_songs: updatedSongs,
+      });
+
+      // Step 1: Set dragged song to temporary index
+      const res1 = await fetch(`/api/dashboard/setlist_songs/${draggedSong.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_index: tempIndex }),
+      });
+      const data1 = await res1.json();
+      if (!data1.success) throw new Error('Step 1 failed');
+
+      // Step 2: Update target song to dragged's original index
+      const res2 = await fetch(`/api/dashboard/setlist_songs/${targetSong.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_index: targetNewIndex }),
+      });
+      const data2 = await res2.json();
+      if (!data2.success) throw new Error('Step 2 failed');
+
+      // Step 3: Update dragged song to target's original index
+      const res3 = await fetch(`/api/dashboard/setlist_songs/${draggedSong.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_index: draggedNewIndex }),
+      });
+      const data3 = await res3.json();
+      if (!data3.success) throw new Error('Step 3 failed');
+
+      // No need to fetch again since we already updated optimistically
+    } catch (error) {
+      console.error('Drag and drop error:', error);
+      // Revert optimistic update on error
+      setSetlistDetail({
+        ...setlistDetail,
+        setlist_songs: songs,
+      });
+      toast({
+        title: '순서 변경 실패',
+        description: '곡 순서 변경 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
+    } finally {
+      setDraggedSongId(null);
+    }
+  };
+
   const handleSyncSections = async () => {
     setIsSyncing(true);
     try {
@@ -358,6 +660,133 @@ export default function DashboardPage() {
       });
     } finally {
       setIsLoadingDetail(false);
+    }
+  };
+
+  const fetchSetlistDetail = async (setlistId: number) => {
+    setIsLoadingDetail(true);
+    // Clear song search state
+    setSetlistSongQuery('');
+    setSetlistSongResults([]);
+    setShowSetlistSongResults(false);
+    try {
+      const response = await fetch(`/api/dashboard/setlists/${setlistId}`);
+      const result = await response.json();
+      if (result.success) {
+        setSetlistDetail(result.data);
+      } else {
+        toast({
+          title: '오류',
+          description: '셋리스트 상세 정보를 불러올 수 없습니다.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: '오류',
+        description: '셋리스트 상세 정보를 불러올 수 없습니다.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingDetail(false);
+    }
+  };
+
+  const fetchArtistDetail = async (artistId: number) => {
+    setIsLoadingDetail(true);
+    try {
+      const response = await fetch(`/api/dashboard/artists/${artistId}`);
+      const result = await response.json();
+      if (result.success) {
+        setArtistDetail(result.data);
+      } else {
+        toast({
+          title: '오류',
+          description: '아티스트 상세 정보를 불러올 수 없습니다.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: '오류',
+        description: '아티스트 상세 정보를 불러올 수 없습니다.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingDetail(false);
+    }
+  };
+
+  const fetchSongDetail = async (songId: number) => {
+    setIsLoadingDetail(true);
+    try {
+      const response = await fetch(`/api/dashboard/songs/${songId}`);
+      const result = await response.json();
+      if (result.success) {
+        setSongDetail(result.data);
+      } else {
+        toast({
+          title: '오류',
+          description: '곡 상세 정보를 불러올 수 없습니다.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: '오류',
+        description: '곡 상세 정보를 불러올 수 없습니다.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingDetail(false);
+    }
+  };
+
+  const handleSaveSong = async () => {
+    if (!editedSong) return;
+
+    setIsSavingSong(true);
+    try {
+      const response = await fetch(`/api/dashboard/songs/${editedSong.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editedSong),
+      });
+      const result = await response.json();
+
+      console.log('Song update response:', result);
+
+      if (result.success) {
+        setSongDetail(result.data);
+        setIsEditingSong(false);
+        setEditedSong(null);
+        toast({
+          title: '성공',
+          description: '곡 정보가 수정되었습니다.',
+        });
+        // Refresh data to update the table
+        fetchStats();
+      } else {
+        console.error('Song update failed:', result);
+        // Revert to original values on error
+        setEditedSong({ ...songDetail });
+        toast({
+          title: '오류',
+          description: result.error || '곡 정보 수정에 실패했습니다.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Song update error:', error);
+      // Revert to original values on error
+      setEditedSong({ ...songDetail });
+      toast({
+        title: '오류',
+        description: `곡 정보 수정에 실패했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingSong(false);
     }
   };
 
@@ -497,6 +926,10 @@ export default function DashboardPage() {
       if (concertDetail) {
         await fetchConcertDetail(concertDetail.id);
       }
+      // Refresh setlist detail if open
+      if (setlistDetail) {
+        await fetchSetlistDetail(setlistDetail.id);
+      }
     } catch (error) {
       toast({
         title: '수정 실패',
@@ -532,6 +965,10 @@ export default function DashboardPage() {
       if (concertDetail) {
         await fetchConcertDetail(concertDetail.id);
       }
+      // Refresh setlist detail if open
+      if (setlistDetail) {
+        await fetchSetlistDetail(setlistDetail.id);
+      }
     } catch (error) {
       toast({
         title: '삭제 실패',
@@ -552,10 +989,16 @@ export default function DashboardPage() {
       }
     });
     setAddFormData(formData);
-    // Reset report comment search state
+    // Reset all search states
     setReportCommentQuery('');
     setReportCommentResults([]);
     setShowReportCommentResults(false);
+    setAddConcertQuery('');
+    setAddConcertResults([]);
+    setShowAddConcertResults(false);
+    setAddUserQuery('');
+    setAddUserResults([]);
+    setShowAddUserResults(false);
   };
 
   const handleSaveAdd = async () => {
@@ -711,8 +1154,8 @@ export default function DashboardPage() {
       icon: '💬',
       columns: ['ID', 'Concert', 'User', 'Content', 'Created', 'Updated', ''],
       editFields: [
-        { key: 'concert_id', label: 'Concert ID', type: 'text' },
-        { key: 'user_id', label: 'User ID', type: 'text' },
+        { key: 'concert_id', label: '콘서트', type: 'search_concert' },
+        { key: 'user_id', label: '사용자', type: 'search_user' },
         { key: 'content', label: 'Content', type: 'textarea' },
       ],
       renderRow: (item: any) => (
@@ -806,7 +1249,12 @@ export default function DashboardPage() {
         return (
           <>
             <td className="px-4 py-2 text-livith-white whitespace-nowrap">{item.id}</td>
-            <td className="px-4 py-2 text-livith-white whitespace-nowrap">{item.artist}</td>
+            <td
+              className="px-4 py-2 text-livith-yellow-60 whitespace-nowrap cursor-pointer hover:underline"
+              onClick={() => fetchArtistDetail(item.id)}
+            >
+              {item.artist}
+            </td>
             <td className="px-4 py-2 text-livith-black-30 whitespace-nowrap">{item.category || '-'}</td>
             <td className="px-4 py-2 text-livith-black-30 whitespace-nowrap">{item.debut_date || '-'}</td>
             <td className="px-4 py-2 text-livith-black-30 whitespace-nowrap">{item.keywords || '-'}</td>
@@ -847,7 +1295,12 @@ export default function DashboardPage() {
       renderRow: (item: any) => (
         <>
           <td className="px-4 py-2 text-livith-white whitespace-nowrap">{item.id}</td>
-          <td className="px-4 py-2 text-livith-white whitespace-nowrap">{item.title}</td>
+          <td
+            className="px-4 py-2 text-livith-yellow-60 whitespace-nowrap cursor-pointer hover:underline"
+            onClick={() => fetchSongDetail(item.id)}
+          >
+            {item.title}
+          </td>
           <td className="px-4 py-2 text-livith-white whitespace-nowrap">{item.artist}</td>
           <td className="px-4 py-2 text-livith-black-30 whitespace-nowrap">{item.youtube_id || '-'}</td>
           <td className="px-4 py-2 text-livith-black-30 whitespace-nowrap">{item.lyrics ? '있음' : '-'}</td>
@@ -872,7 +1325,12 @@ export default function DashboardPage() {
       renderRow: (item: any) => (
         <>
           <td className="px-4 py-2 text-livith-white whitespace-nowrap">{item.id}</td>
-          <td className="px-4 py-2 text-livith-white whitespace-nowrap">{item.title}</td>
+          <td
+            className="px-4 py-2 text-livith-yellow-60 whitespace-nowrap cursor-pointer hover:underline"
+            onClick={() => fetchSetlistDetail(item.id)}
+          >
+            {item.title}
+          </td>
           <td className="px-4 py-2 text-livith-white whitespace-nowrap">{item.artist || '-'}</td>
           <td className="px-4 py-2 text-livith-black-30 text-sm whitespace-nowrap">{item.start_date}</td>
           <td className="px-4 py-2 text-livith-black-30 text-sm whitespace-nowrap">{item.end_date}</td>
@@ -1596,7 +2054,79 @@ export default function DashboardPage() {
                   <label className="block text-livith-black-30 text-sm mb-2">
                     {field.label}
                   </label>
-                  {field.type === 'select' && field.key === 'status' ? (
+                  {field.type === 'search_concert' ? (
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={addConcertQuery}
+                        onChange={(e) => setAddConcertQuery(e.target.value)}
+                        placeholder="콘서트 제목 또는 아티스트로 검색..."
+                        className="w-full px-3 py-2 bg-livith-black-90 border border-livith-black-50 rounded text-livith-white focus:outline-none focus:border-livith-yellow-60"
+                      />
+                      {showAddConcertResults && addConcertResults.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-livith-black-90 border border-livith-black-50 rounded-lg max-h-48 overflow-auto shadow-lg">
+                          {addConcertResults.map((concert) => (
+                            <button
+                              key={concert.id}
+                              onClick={() => {
+                                setAddFormData(prev => ({ ...prev, concert_id: concert.id, concert_title: concert.title }));
+                                setAddConcertQuery('');
+                                setAddConcertResults([]);
+                                setShowAddConcertResults(false);
+                              }}
+                              className="w-full px-4 py-2 text-left hover:bg-livith-black-60 border-b border-livith-black-50 last:border-b-0"
+                            >
+                              <p className="text-livith-white text-sm">{concert.title}</p>
+                              <p className="text-livith-black-30 text-xs">
+                                {concert.artist} | {concert.start_date}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {addFormData.concert_id && (
+                        <p className="text-livith-yellow-60 text-xs mt-1">
+                          선택됨: {addFormData.concert_title || addFormData.concert_id}
+                        </p>
+                      )}
+                    </div>
+                  ) : field.type === 'search_user' ? (
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={addUserQuery}
+                        onChange={(e) => setAddUserQuery(e.target.value)}
+                        placeholder="닉네임 또는 이메일로 검색..."
+                        className="w-full px-3 py-2 bg-livith-black-90 border border-livith-black-50 rounded text-livith-white focus:outline-none focus:border-livith-yellow-60"
+                      />
+                      {showAddUserResults && addUserResults.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-livith-black-90 border border-livith-black-50 rounded-lg max-h-48 overflow-auto shadow-lg">
+                          {addUserResults.map((user) => (
+                            <button
+                              key={user.id}
+                              onClick={() => {
+                                setAddFormData(prev => ({ ...prev, user_id: user.id, user_name: user.nickname || user.email || `User ${user.id}` }));
+                                setAddUserQuery('');
+                                setAddUserResults([]);
+                                setShowAddUserResults(false);
+                              }}
+                              className="w-full px-4 py-2 text-left hover:bg-livith-black-60 border-b border-livith-black-50 last:border-b-0"
+                            >
+                              <p className="text-livith-white text-sm">{user.nickname || user.email || `User ${user.id}`}</p>
+                              <p className="text-livith-black-30 text-xs">
+                                ID: {user.id} | {user.email || '-'}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {addFormData.user_id && (
+                        <p className="text-livith-yellow-60 text-xs mt-1">
+                          선택됨: {addFormData.user_name || addFormData.user_id}
+                        </p>
+                      )}
+                    </div>
+                  ) : field.type === 'select' && field.key === 'status' ? (
                     <select
                       value={addFormData[field.key] || ''}
                       onChange={(e) => setAddFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
@@ -2262,6 +2792,498 @@ export default function DashboardPage() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Setlist Detail Modal */}
+      {(setlistDetail || isLoadingDetail) && !concertDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-livith-black-80 rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+            {isLoadingDetail && !setlistDetail ? (
+              <div className="p-8 text-center text-livith-black-30">로딩 중...</div>
+            ) : setlistDetail && (
+              <>
+                <div className="px-6 py-4 border-b border-livith-black-50 flex items-start justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-livith-white">{setlistDetail.title}</h3>
+                    <p className="text-livith-black-30 text-sm">{setlistDetail.artist || '-'} | {setlistDetail.venue || '-'}</p>
+                  </div>
+                  <button
+                    onClick={() => setSetlistDetail(null)}
+                    className="text-livith-black-30 hover:text-livith-white text-2xl leading-none"
+                  >
+                    &times;
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                  {/* Basic Info */}
+                  <div className="bg-livith-black-90 rounded-lg p-4">
+                    <h4 className="text-livith-yellow-60 font-semibold mb-3">기본 정보</h4>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <span className="text-livith-black-30">ID:</span>
+                        <span className="text-livith-white ml-2">{setlistDetail.id}</span>
+                      </div>
+                      <div>
+                        <span className="text-livith-black-30">기간:</span>
+                        <span className="text-livith-white ml-2">{setlistDetail.start_date} ~ {setlistDetail.end_date}</span>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        onClick={() => {
+                          setSetlistDetail(null);
+                          handleEdit('setlists', {
+                            id: setlistDetail.id,
+                            title: setlistDetail.title,
+                            artist: setlistDetail.artist,
+                            start_date: setlistDetail.start_date,
+                            end_date: setlistDetail.end_date,
+                            venue: setlistDetail.venue,
+                            img_url: setlistDetail.img_url,
+                          }, [
+                            { key: 'title', label: 'Title', type: 'text' },
+                            { key: 'artist', label: 'Artist', type: 'text' },
+                            { key: 'start_date', label: 'Start Date', type: 'text' },
+                            { key: 'end_date', label: 'End Date', type: 'text' },
+                            { key: 'venue', label: 'Venue', type: 'text' },
+                            { key: 'img_url', label: 'Image URL', type: 'text' },
+                          ]);
+                        }}
+                        className="text-livith-yellow-60 hover:text-livith-yellow-40 text-sm"
+                      >
+                        수정
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Songs */}
+                  <div className="bg-livith-black-90 rounded-lg p-4">
+                    <h4 className="text-livith-yellow-60 font-semibold mb-3">곡 목록 ({setlistDetail.setlist_songs.length})</h4>
+
+                    {/* Add Song Search */}
+                    <div className="relative mb-3">
+                      <input
+                        type="text"
+                        value={setlistSongQuery}
+                        onChange={(e) => setSetlistSongQuery(e.target.value)}
+                        onBlur={() => {
+                          // Delay to allow button click to register
+                          setTimeout(() => {
+                            setShowSetlistSongResults(false);
+                          }, 200);
+                        }}
+                        onFocus={() => {
+                          if (setlistSongResults.length > 0) {
+                            setShowSetlistSongResults(true);
+                          }
+                        }}
+                        placeholder="곡 제목 또는 아티스트로 검색..."
+                        className="w-full px-3 py-2 bg-livith-black-70 border border-livith-black-50 rounded text-black placeholder-livith-black-30 focus:outline-none focus:border-livith-yellow-60"
+                      />
+                      {showSetlistSongResults && setlistSongResults.length > 0 && (
+                        <div className="absolute z-50 w-full mt-1 bg-[#1a1a1a] border border-livith-black-50 rounded shadow-lg max-h-40 overflow-y-auto">
+                          {setlistSongResults.map((song) => (
+                            <button
+                              key={song.id}
+                              onClick={() => handleAddSongToSetlist({ id: song.id, title: song.title, artist: song.artist })}
+                              className="w-full px-4 py-2 text-left hover:bg-livith-black-60 border-b border-livith-black-50 last:border-b-0 text-livith-white bg-[#1a1a1a]"
+                            >
+                              <p className="text-sm">{song.title}</p>
+                              <p className="text-xs text-livith-black-30">{song.artist}</p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {setlistDetail.setlist_songs.length > 0 ? (
+                      <div className="space-y-2">
+                        {setlistDetail.setlist_songs.map((ss) => (
+                          <div
+                            key={ss.id}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, ss.id)}
+                            onDragOver={(e) => handleDragOver(e, ss.id)}
+                            onDragLeave={handleDragLeave}
+                            onDragEnd={handleDragEnd}
+                            onDrop={(e) => handleDrop(e, ss.id)}
+                            className={`flex items-center justify-between p-3 bg-livith-black-70 rounded cursor-grab active:cursor-grabbing transition-all ${
+                              draggedSongId === ss.id ? 'opacity-50' : ''
+                            } ${
+                              dragOverSongId === ss.id ? 'border-2 border-livith-yellow-60' : 'border-2 border-transparent'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="text-livith-black-30 text-sm select-none">⋮⋮</span>
+                              <span className="text-livith-black-30 text-sm w-6">{ss.order_index + 1}.</span>
+                              <div>
+                                <div className="text-livith-white text-sm">{ss.songs.title}</div>
+                                <div className="text-livith-black-30 text-xs">{ss.songs.artist}</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              {ss.fanchant && (
+                                <span className="text-xs text-green-400">응원법</span>
+                              )}
+                              <button
+                                onClick={() => {
+                                  setDeleteConfirm({
+                                    tableName: 'setlist_songs',
+                                    id: ss.id,
+                                    title: ss.songs.title
+                                  });
+                                }}
+                                className="text-red-500/50 hover:text-red-500 text-xs"
+                              >
+                                삭제
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-livith-black-30 text-sm">등록된 곡이 없습니다.</p>
+                    )}
+                  </div>
+
+                  {/* Linked Concerts */}
+                  <div className="bg-livith-black-90 rounded-lg p-4">
+                    <h4 className="text-livith-yellow-60 font-semibold mb-3">연결된 콘서트 ({setlistDetail.concert_setlists.length})</h4>
+                    {setlistDetail.concert_setlists.length > 0 ? (
+                      <div className="space-y-2">
+                        {setlistDetail.concert_setlists.map(cs => (
+                          <div key={cs.id} className="flex items-center justify-between p-3 bg-livith-black-70 rounded">
+                            <div
+                              className="cursor-pointer hover:opacity-80"
+                              onClick={() => {
+                                setSetlistDetail(null);
+                                fetchConcertDetail(cs.concerts.id);
+                              }}
+                            >
+                              <div className="text-livith-yellow-60 text-sm hover:underline">{cs.concerts.title}</div>
+                              <div className="text-livith-black-30 text-xs">
+                                {cs.concerts.artist || '-'} | {cs.concerts.start_date} ~ {cs.concerts.end_date}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className={`px-2 py-0.5 rounded text-xs ${
+                                cs.concerts.status === 'ONGOING' ? 'bg-green-500/20 text-green-300' :
+                                cs.concerts.status === 'UPCOMING' ? 'bg-blue-500/20 text-blue-300' :
+                                'bg-gray-500/20 text-gray-300'
+                              }`}>
+                                {cs.concerts.status}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  setDeleteConfirm({
+                                    tableName: 'concert_setlists',
+                                    id: cs.id,
+                                    title: cs.concerts.title
+                                  });
+                                }}
+                                className="text-red-500/50 hover:text-red-500 text-xs"
+                              >
+                                삭제
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-livith-black-30 text-sm">연결된 콘서트가 없습니다.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="px-6 py-4 border-t border-livith-black-50 flex justify-end">
+                  <Button
+                    onClick={() => setSetlistDetail(null)}
+                    variant="outline"
+                    className="bg-livith-black-70 border-livith-black-50 text-livith-white hover:bg-livith-black-60"
+                  >
+                    닫기
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Artist Detail Modal */}
+      {artistDetail && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setArtistDetail(null)}
+        >
+          <div
+            className="bg-livith-black-80 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b border-livith-black-50 flex items-start justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-livith-white">{artistDetail.artist}</h3>
+                <p className="text-livith-black-30 text-sm">{artistDetail.category || '-'}</p>
+              </div>
+              <button
+                onClick={() => setArtistDetail(null)}
+                className="text-livith-black-30 hover:text-livith-white text-2xl leading-none"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-livith-black-30">ID:</span>
+                  <span className="text-livith-white ml-2">{artistDetail.id}</span>
+                </div>
+                <div>
+                  <span className="text-livith-black-30">데뷔:</span>
+                  <span className="text-livith-white ml-2">{artistDetail.debut_date || '-'}</span>
+                </div>
+                <div>
+                  <span className="text-livith-black-30">키워드:</span>
+                  <span className="text-livith-white ml-2">{artistDetail.keywords || '-'}</span>
+                </div>
+                <div>
+                  <span className="text-livith-black-30">인스타그램:</span>
+                  {artistDetail.instagram_url ? (
+                    <a href={artistDetail.instagram_url} target="_blank" rel="noopener noreferrer" className="text-livith-yellow-60 ml-2 hover:underline">
+                      링크
+                    </a>
+                  ) : (
+                    <span className="text-livith-white ml-2">-</span>
+                  )}
+                </div>
+              </div>
+              {artistDetail.img_url && (
+                <div>
+                  <span className="text-livith-black-30 text-sm">이미지:</span>
+                  <img src={artistDetail.img_url} alt={artistDetail.artist} className="mt-2 max-w-full h-32 object-cover rounded" />
+                </div>
+              )}
+              {artistDetail.detail && (
+                <div>
+                  <span className="text-livith-black-30 text-sm">상세 정보:</span>
+                  <p className="text-livith-white text-sm mt-1 whitespace-pre-wrap">{artistDetail.detail}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-livith-black-50 flex justify-between">
+              <button
+                onClick={() => {
+                  setArtistDetail(null);
+                  handleEdit('artists', artistDetail, [
+                    { key: 'artist', label: 'Name', type: 'text' },
+                    { key: 'category', label: 'Category', type: 'text' },
+                    { key: 'debut_date', label: 'Debut Year', type: 'text' },
+                    { key: 'keywords', label: 'Keywords', type: 'text' },
+                    { key: 'instagram_url', label: 'Instagram URL', type: 'text' },
+                    { key: 'img_url', label: 'Image URL', type: 'text' },
+                    { key: 'detail', label: 'Detail', type: 'textarea' },
+                  ]);
+                }}
+                className="text-livith-yellow-60 hover:text-livith-yellow-40 text-sm"
+              >
+                수정
+              </button>
+              <Button
+                onClick={() => setArtistDetail(null)}
+                variant="outline"
+                className="bg-livith-black-70 border-livith-black-50 text-livith-white hover:bg-livith-black-60"
+              >
+                닫기
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Song Detail Modal */}
+      {songDetail && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => {
+            setSongDetail(null);
+            setIsEditingSong(false);
+            setEditedSong(null);
+          }}
+        >
+          <div
+            className="bg-livith-black-80 rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b border-livith-black-50 flex items-start justify-between">
+              <div>
+                {isEditingSong ? (
+                  <>
+                    <input
+                      type="text"
+                      value={editedSong?.title || ''}
+                      onChange={(e) => setEditedSong({ ...editedSong, title: e.target.value })}
+                      className="text-lg font-semibold bg-livith-black-90 border border-livith-black-50 rounded px-2 py-1 text-livith-white w-full"
+                      placeholder="제목"
+                    />
+                    <input
+                      type="text"
+                      value={editedSong?.artist || ''}
+                      onChange={(e) => setEditedSong({ ...editedSong, artist: e.target.value })}
+                      className="text-sm bg-livith-black-90 border border-livith-black-50 rounded px-2 py-1 text-livith-white w-full mt-2"
+                      placeholder="아티스트"
+                    />
+                  </>
+                ) : (
+                  <>
+                    <h3 className="text-lg font-semibold text-livith-white">{songDetail.title}</h3>
+                    <p className="text-livith-black-30 text-sm">{songDetail.artist}</p>
+                  </>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  setSongDetail(null);
+                  setIsEditingSong(false);
+                  setEditedSong(null);
+                }}
+                className="text-livith-black-30 hover:text-livith-white text-2xl leading-none"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-livith-black-30">ID:</span>
+                  <span className="text-livith-white ml-2">{songDetail.id}</span>
+                </div>
+                <div>
+                  <span className="text-livith-black-30">YouTube ID:</span>
+                  {isEditingSong ? (
+                    <input
+                      type="text"
+                      value={editedSong?.youtube_id || ''}
+                      onChange={(e) => setEditedSong({ ...editedSong, youtube_id: e.target.value })}
+                      className="ml-2 bg-livith-black-90 border border-livith-black-50 rounded px-2 py-1 text-livith-white text-sm"
+                      placeholder="YouTube ID"
+                    />
+                  ) : (
+                    <span className="text-livith-white ml-2">{songDetail.youtube_id || '-'}</span>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <span className="text-livith-black-30 text-sm">이미지 URL:</span>
+                {isEditingSong ? (
+                  <input
+                    type="text"
+                    value={editedSong?.img_url || ''}
+                    onChange={(e) => setEditedSong({ ...editedSong, img_url: e.target.value })}
+                    className="w-full mt-1 bg-livith-black-90 border border-livith-black-50 rounded px-2 py-1 text-livith-white text-sm"
+                    placeholder="이미지 URL"
+                  />
+                ) : songDetail.img_url ? (
+                  <img src={songDetail.img_url} alt={songDetail.title} className="mt-2 max-w-full h-32 object-cover rounded" />
+                ) : (
+                  <span className="text-livith-white ml-2">-</span>
+                )}
+              </div>
+
+              <div className="bg-livith-black-90 rounded-lg p-4">
+                <h4 className="text-livith-yellow-60 font-semibold mb-2">가사</h4>
+                {isEditingSong ? (
+                  <textarea
+                    value={editedSong?.lyrics || ''}
+                    onChange={(e) => setEditedSong({ ...editedSong, lyrics: e.target.value })}
+                    className="w-full bg-livith-black-80 border border-livith-black-50 rounded px-2 py-1 text-livith-white text-sm h-40"
+                    placeholder="가사"
+                  />
+                ) : (
+                  <p className="text-livith-white text-sm whitespace-pre-wrap max-h-60 overflow-y-auto">{songDetail.lyrics || '-'}</p>
+                )}
+              </div>
+
+              <div className="bg-livith-black-90 rounded-lg p-4">
+                <h4 className="text-livith-yellow-60 font-semibold mb-2">발음</h4>
+                {isEditingSong ? (
+                  <textarea
+                    value={editedSong?.pronunciation || ''}
+                    onChange={(e) => setEditedSong({ ...editedSong, pronunciation: e.target.value })}
+                    className="w-full bg-livith-black-80 border border-livith-black-50 rounded px-2 py-1 text-livith-white text-sm h-32"
+                    placeholder="발음"
+                  />
+                ) : (
+                  <p className="text-livith-white text-sm whitespace-pre-wrap max-h-40 overflow-y-auto">{songDetail.pronunciation || '-'}</p>
+                )}
+              </div>
+
+              <div className="bg-livith-black-90 rounded-lg p-4">
+                <h4 className="text-livith-yellow-60 font-semibold mb-2">번역</h4>
+                {isEditingSong ? (
+                  <textarea
+                    value={editedSong?.translation || ''}
+                    onChange={(e) => setEditedSong({ ...editedSong, translation: e.target.value })}
+                    className="w-full bg-livith-black-80 border border-livith-black-50 rounded px-2 py-1 text-livith-white text-sm h-32"
+                    placeholder="번역"
+                  />
+                ) : (
+                  <p className="text-livith-white text-sm whitespace-pre-wrap max-h-40 overflow-y-auto">{songDetail.translation || '-'}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-livith-black-50 flex justify-between">
+              {isEditingSong ? (
+                <>
+                  <button
+                    onClick={() => {
+                      setIsEditingSong(false);
+                      setEditedSong(null);
+                    }}
+                    className="text-livith-black-30 hover:text-livith-white text-sm"
+                  >
+                    취소
+                  </button>
+                  <Button
+                    onClick={handleSaveSong}
+                    disabled={isSavingSong}
+                    className="bg-livith-yellow-60 text-livith-black-90 hover:bg-livith-yellow-40"
+                  >
+                    {isSavingSong ? '저장 중...' : '저장'}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      setIsEditingSong(true);
+                      setEditedSong({ ...songDetail });
+                    }}
+                    className="text-livith-yellow-60 hover:text-livith-yellow-40 text-sm"
+                  >
+                    수정
+                  </button>
+                  <Button
+                    onClick={() => {
+                      setSongDetail(null);
+                      setIsEditingSong(false);
+                      setEditedSong(null);
+                    }}
+                    variant="outline"
+                    className="bg-livith-black-70 border-livith-black-50 text-livith-white hover:bg-livith-black-60"
+                  >
+                    닫기
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
