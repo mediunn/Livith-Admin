@@ -44,6 +44,9 @@ export function SetlistCreator() {
   // Setlist details
   const [setlistTitle, setSetlistTitle] = useState('');
   const [setlistType, setSetlistType] = useState('EXPECTED');
+  const [setlistImgUrl, setSetlistImgUrl] = useState('');
+  const [setlistStartDate, setSetlistStartDate] = useState('');
+  const [setlistEndDate, setSetlistEndDate] = useState('');
 
   // Songs
   const [songs, setSongs] = useState<Song[]>([]);
@@ -87,6 +90,9 @@ export function SetlistCreator() {
         if (draft.selectedConcert) setSelectedConcert(draft.selectedConcert);
         if (draft.setlistTitle) setSetlistTitle(draft.setlistTitle);
         if (draft.setlistType) setSetlistType(draft.setlistType);
+        if (draft.setlistImgUrl) setSetlistImgUrl(draft.setlistImgUrl);
+        if (draft.setlistStartDate) setSetlistStartDate(draft.setlistStartDate);
+        if (draft.setlistEndDate) setSetlistEndDate(draft.setlistEndDate);
         if (draft.songs) setSongs(draft.songs);
         if (draft.newSongArtist) setNewSongArtist(draft.newSongArtist);
       } catch (error) {
@@ -101,11 +107,14 @@ export function SetlistCreator() {
       selectedConcert,
       setlistTitle,
       setlistType,
+      setlistImgUrl,
+      setlistStartDate,
+      setlistEndDate,
       songs,
       newSongArtist,
     };
     localStorage.setItem('setlist-draft', JSON.stringify(draft));
-  }, [selectedConcert, setlistTitle, setlistType, songs, newSongArtist]);
+  }, [selectedConcert, setlistTitle, setlistType, setlistImgUrl, setlistStartDate, setlistEndDate, songs, newSongArtist]);
 
   // Clear draft
   const clearDraft = () => {
@@ -165,6 +174,8 @@ export function SetlistCreator() {
     setConcertQuery('');
     setShowConcertResults(false);
     setSetlistTitle(concert.title);
+    setSetlistStartDate(concert.start_date || '');
+    setSetlistEndDate(concert.end_date || '');
     setNewSongArtist(concert.artist || '');
   };
 
@@ -252,9 +263,10 @@ export function SetlistCreator() {
           setlist: {
             title: setlistTitle || selectedConcert.title,
             artist: selectedConcert.artist,
-            start_date: selectedConcert.start_date,
-            end_date: selectedConcert.end_date,
+            start_date: setlistStartDate || selectedConcert.start_date,
+            end_date: setlistEndDate || selectedConcert.end_date,
             venue: selectedConcert.venue,
+            img_url: setlistImgUrl || null,
           },
           songs: songs.map(song => ({
             id: song.isNew ? undefined : song.id,
@@ -279,6 +291,9 @@ export function SetlistCreator() {
         // Reset form and clear draft
         setSelectedConcert(null);
         setSetlistTitle('');
+        setSetlistImgUrl('');
+        setSetlistStartDate('');
+        setSetlistEndDate('');
         setSongs([]);
         setSetlistType('EXPECTED');
         setNewSongArtist('');
@@ -403,6 +418,61 @@ export function SetlistCreator() {
                     <option value="PAST">PAST</option>
                   </select>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-livith-white font-semibold mb-2">
+                    시작일
+                  </label>
+                  <input
+                    type="text"
+                    value={setlistStartDate}
+                    onChange={(e) => setSetlistStartDate(e.target.value)}
+                    placeholder="YYYY-MM-DD"
+                    className="w-full px-4 py-2 bg-livith-black-90 border border-livith-black-50 rounded text-livith-white focus:outline-none focus:border-livith-yellow-60"
+                  />
+                </div>
+                <div>
+                  <label className="block text-livith-white font-semibold mb-2">
+                    종료일
+                  </label>
+                  <input
+                    type="text"
+                    value={setlistEndDate}
+                    onChange={(e) => setSetlistEndDate(e.target.value)}
+                    placeholder="YYYY-MM-DD"
+                    className="w-full px-4 py-2 bg-livith-black-90 border border-livith-black-50 rounded text-livith-white focus:outline-none focus:border-livith-yellow-60"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-livith-white font-semibold mb-2">
+                  이미지 URL
+                </label>
+                <input
+                  type="text"
+                  value={setlistImgUrl}
+                  onChange={(e) => setSetlistImgUrl(e.target.value)}
+                  placeholder="셋리스트 이미지 URL (선택)"
+                  className="w-full px-4 py-2 bg-livith-black-90 border border-livith-black-50 rounded text-livith-white focus:outline-none focus:border-livith-yellow-60"
+                />
+                {setlistImgUrl && (
+                  <div className="mt-2">
+                    <img
+                      src={setlistImgUrl}
+                      alt="셋리스트 이미지 미리보기"
+                      className="max-h-40 rounded border border-livith-black-50 object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                      onLoad={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'block';
+                      }}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Song Search & Add */}
