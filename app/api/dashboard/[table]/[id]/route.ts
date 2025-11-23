@@ -235,6 +235,26 @@ export async function PUT(
         });
         break;
 
+      case 'setlist_songs': {
+        const setlistSongData: any = {
+          updated_at: new Date(),
+        };
+        if (body.order_index !== undefined) {
+          setlistSongData.order_index = body.order_index;
+        }
+        if (body.fanchant !== undefined) {
+          setlistSongData.fanchant = body.fanchant;
+        }
+        if (body.fanchant_point !== undefined) {
+          setlistSongData.fanchant_point = body.fanchant_point;
+        }
+        result = await prisma.setlist_songs.update({
+          where: { id: numericId },
+          data: setlistSongData,
+        });
+        break;
+      }
+
       case 'banners':
         result = await prisma.banners.update({
           where: { id: numericId },
@@ -472,6 +492,12 @@ export async function DELETE(
 
       case 'concert_setlists':
         result = await prisma.concert_setlists.delete({
+          where: { id: numericId },
+        });
+        break;
+
+      case 'setlist_songs':
+        result = await prisma.setlist_songs.delete({
           where: { id: numericId },
         });
         break;

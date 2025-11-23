@@ -44,13 +44,26 @@ export async function createData(table: string, data: any) {
       return { success: false, error: `테이블 '${table}'을 찾을 수 없습니다.` };
     }
 
-    // updated_at 자동 추가
-    const dataWithTimestamp = {
-      ...data,
-      updated_at: new Date(),
-    };
+    let processedData = { ...data };
 
-    const newRecord = await model.create({ data: dataWithTimestamp });
+    // users 테이블 특별 처리
+    if (table === 'users') {
+      processedData = {
+        nickname: data.nickname || null,
+        email: data.email || null,
+        provider: data.provider || 'kakao',
+        provider_id: data.provider_id || null,
+        interest_concert_id: data.interest_concert_id ? parseInt(data.interest_concert_id) : null,
+        marketing_consent: data.marketing_consent === 'true' || data.marketing_consent === true,
+        refresh_token: data.refresh_token || null,
+        updated_at: new Date(),
+      };
+    } else {
+      // updated_at 자동 추가
+      processedData.updated_at = new Date();
+    }
+
+    const newRecord = await model.create({ data: processedData });
     revalidatePath('/');
 
     return { success: true, data: newRecord };

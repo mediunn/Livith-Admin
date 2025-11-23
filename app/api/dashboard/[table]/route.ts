@@ -18,10 +18,11 @@ export async function POST(
           data: {
             nickname: body.nickname || null,
             email: body.email || null,
-            provider: body.provider || 'manual',
+            provider: body.provider || 'kakao',
             provider_id: body.provider_id || null,
-            marketing_consent: body.marketing_consent || false,
-            created_at: new Date(),
+            interest_concert_id: body.interest_concert_id ? parseInt(body.interest_concert_id) : null,
+            marketing_consent: body.marketing_consent === 'true' || body.marketing_consent === true,
+            refresh_token: body.refresh_token || null,
             updated_at: new Date(),
           },
         });
@@ -258,6 +259,23 @@ export async function POST(
         }
         break;
 
+      case 'setlist_songs':
+        result = await prisma.setlist_songs.create({
+          data: {
+            setlist_id: body.setlist_id,
+            song_id: body.song_id,
+            order_index: body.order_index || 0,
+            setlist_date: body.setlist_date,
+            setlist_title: body.setlist_title,
+            song_title: body.song_title,
+            fanchant: body.fanchant || null,
+            fanchant_point: body.fanchant_point || null,
+            created_at: new Date(),
+            updated_at: new Date(),
+          },
+        });
+        break;
+
       default:
         return NextResponse.json(
           { success: false, error: 'Unknown table' },
@@ -271,8 +289,9 @@ export async function POST(
     });
   } catch (error) {
     console.error('Create error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create data';
     return NextResponse.json(
-      { success: false, error: 'Failed to create data' },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }

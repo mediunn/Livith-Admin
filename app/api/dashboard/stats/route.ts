@@ -251,10 +251,11 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Dashboard stats error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch dashboard stats';
     return NextResponse.json(
       {
         success: false,
-        error: 'Failed to fetch dashboard stats',
+        error: errorMessage,
         timestamp: new Date().toISOString(),
       },
       { status: 500 }

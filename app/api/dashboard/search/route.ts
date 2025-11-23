@@ -78,6 +78,25 @@ export async function GET(request: NextRequest) {
         });
         break;
 
+      case 'users':
+        results = await prisma.users.findMany({
+          where: {
+            OR: [
+              { nickname: { contains: query } },
+              { email: { contains: query } },
+            ],
+          },
+          take: 20,
+          orderBy: { updated_at: 'desc' },
+          select: {
+            id: true,
+            nickname: true,
+            email: true,
+            provider: true,
+          },
+        });
+        break;
+
       default:
         return NextResponse.json(
           { success: false, error: 'Invalid type' },
