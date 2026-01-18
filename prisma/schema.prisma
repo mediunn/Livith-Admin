@@ -10,26 +10,26 @@ datasource db {
 
 model artists {
   id            Int        @id @default(autoincrement())
-  artist        String     @unique(map: "uk_artist") @db.VarChar(100)
+  artist        String     @db.VarChar(100)
   category      String?    @db.VarChar(30)
   detail        String?    @db.Text
   instagram_url String?    @db.VarChar(2048)
   keywords      String?    @db.VarChar(100)
   img_url       String?    @db.VarChar(2048)
   created_at    DateTime   @default(now())
-  updated_at    DateTime
+  updated_at    DateTime   @default(now())
   debut_date    String?    @db.VarChar(30)
   concerts      concerts[]
 }
 
 model banners {
   id         Int      @id @default(autoincrement())
-  img_url    String?  @db.VarChar(2048)
-  category   String?  @db.VarChar(30)
-  title      String?  @db.VarChar(50)
+  img_url    String   @db.VarChar(2048)
+  category   String   @db.VarChar(30)
+  title      String   @db.VarChar(50)
   created_at DateTime @default(now())
-  updated_at DateTime
-  content    String?  @db.VarChar(100)
+  updated_at DateTime @default(now())
+  content    String   @db.VarChar(100)
 }
 
 model concert_comments {
@@ -38,7 +38,7 @@ model concert_comments {
   user_id    Int
   content    String   @db.VarChar(500)
   created_at DateTime @default(now())
-  updated_at DateTime
+  updated_at DateTime @default(now())
   concerts   concerts @relation(fields: [concert_id], references: [id])
   users      users    @relation(fields: [user_id], references: [id])
 
@@ -62,14 +62,14 @@ model concert_genres {
 model concert_info {
   id         Int      @id @default(autoincrement())
   concert_id Int
-  category   String   @db.VarChar(30)
-  content    String   @db.VarChar(100)
-  img_url    String?  @db.VarChar(2048)
   created_at DateTime @default(now())
-  updated_at DateTime
+  updated_at DateTime @default(now())
+  info_id    Int
   concerts   concerts @relation(fields: [concert_id], references: [id])
+  info       info     @relation(fields: [info_id], references: [id])
 
-  @@unique([concert_id, category], map: "uk_concert_category")
+  @@index([concert_id], map: "concert_info_concert_id_fkey")
+  @@index([info_id], map: "concert_info_info_id_fkey")
 }
 
 model concert_setlists {
@@ -79,7 +79,7 @@ model concert_setlists {
   type          concert_setlists_type @default(ONGOING)
   status        String?               @db.VarChar(10)
   created_at    DateTime              @default(now())
-  updated_at    DateTime
+  updated_at    DateTime              @default(now())
   concert_title String?               @db.VarChar(300)
   setlist_title String?               @db.VarChar(300)
   concerts      concerts              @relation(fields: [concert_id], references: [id])
@@ -95,16 +95,16 @@ model concerts {
   title                   String                    @unique(map: "uk_title") @db.VarChar(300)
   start_date              String                    @db.VarChar(20)
   end_date                String                    @db.VarChar(20)
-  status                  concerts_status           @default(ONGOING)
-  poster                  String?                   @db.VarChar(2048)
-  artist                  String?                   @db.VarChar(100)
+  status                  concerts_status
+  poster                  String                    @db.VarChar(2048)
+  artist                  String                    @db.VarChar(100)
   created_at              DateTime                  @default(now())
-  updated_at              DateTime
+  updated_at              DateTime                  @default(now())
   artist_id               Int
   ticket_site             String?                   @db.VarChar(50)
   ticket_url              String?                   @db.VarChar(2048)
-  venue                   String?                   @db.VarChar(100)
-  introduction            String?                   @db.Text
+  venue                   String                    @db.VarChar(100)
+  introduction            String                    @db.Text
   label                   String?                   @db.VarChar(50)
   concert_comments        concert_comments[]
   concert_genres          concert_genres[]
@@ -130,7 +130,7 @@ model cultures {
   content    String   @db.Text
   img_url    String?  @db.VarChar(2048)
   created_at DateTime @default(now())
-  updated_at DateTime
+  updated_at DateTime @default(now())
   title      String   @db.Text
   concerts   concerts @relation(fields: [concert_id], references: [id])
 
@@ -152,7 +152,7 @@ model home_concert_sections {
   concert_title   String        @db.VarChar(300)
   sorted_index    Int
   created_at      DateTime      @default(now())
-  updated_at      DateTime
+  updated_at      DateTime      @default(now())
   concerts        concerts      @relation(fields: [concert_id], references: [id])
   home_sections   home_sections @relation(fields: [home_section_id], references: [id])
 
@@ -164,7 +164,7 @@ model home_sections {
   id                    Int                     @id @default(autoincrement())
   section_title         String                  @db.VarChar(30)
   created_at            DateTime                @default(now())
-  updated_at            DateTime
+  updated_at            DateTime                @default(now())
   home_concert_sections home_concert_sections[]
 }
 
@@ -175,7 +175,7 @@ model md {
   price      String?  @db.VarChar(30)
   img_url    String?  @db.VarChar(2048)
   created_at DateTime @default(now())
-  updated_at DateTime
+  updated_at DateTime @default(now())
   concerts   concerts @relation(fields: [concert_id], references: [id])
 
   @@index([concert_id], map: "md_concert_id_fkey")
@@ -185,7 +185,7 @@ model reports {
   id              Int      @id @default(autoincrement())
   comment_id      Int?
   created_at      DateTime @default(now())
-  updated_at      DateTime
+  updated_at      DateTime @default(now())
   comment_content String   @db.VarChar(500)
   comment_user_id Int
   report_reason   String?  @db.VarChar(300)
@@ -193,10 +193,9 @@ model reports {
 
 model resignations {
   id         Int      @id @default(autoincrement())
-  user_id    Int
   content    String   @db.Text
   created_at DateTime @default(now())
-  updated_at DateTime
+  updated_at DateTime @default(now())
 }
 
 model schedule {
@@ -205,11 +204,11 @@ model schedule {
   category     String         @db.VarChar(50)
   scheduled_at DateTime
   created_at   DateTime       @default(now())
-  updated_at   DateTime
+  updated_at   DateTime       @default(now())
   type         schedule_type?
   concerts     concerts       @relation(fields: [concert_id], references: [id])
 
-  @@unique([concert_id, scheduled_at, category], map: "unique_schedule_v2")
+  @@index([concert_id], map: "schedule_concert_id_fkey")
 }
 
 model search_concert_sections {
@@ -220,7 +219,7 @@ model search_concert_sections {
   concert_title     String          @db.VarChar(300)
   sorted_index      Int
   created_at        DateTime        @default(now())
-  updated_at        DateTime
+  updated_at        DateTime        @default(now())
   concerts          concerts        @relation(fields: [concert_id], references: [id])
   search_sections   search_sections @relation(fields: [search_section_id], references: [id])
 
@@ -232,7 +231,7 @@ model search_sections {
   id                      Int                       @id @default(autoincrement())
   section_title           String                    @db.VarChar(30)
   created_at              DateTime                  @default(now())
-  updated_at              DateTime
+  updated_at              DateTime                  @default(now())
   search_concert_sections search_concert_sections[]
 }
 
@@ -246,7 +245,7 @@ model setlist_songs {
   setlist_date   String   @db.VarChar(20)
   setlist_title  String   @db.VarChar(300)
   song_title     String   @db.VarChar(50)
-  updated_at     DateTime
+  updated_at     DateTime @default(now())
   fanchant_point String?  @db.Text
   setlists       setlists @relation(fields: [setlist_id], references: [id])
   songs          songs    @relation(fields: [song_id], references: [id])
@@ -259,13 +258,13 @@ model setlist_songs {
 model setlists {
   id               Int                @id @default(autoincrement())
   title            String             @db.VarChar(300)
-  artist           String?            @db.VarChar(100)
+  artist           String             @db.VarChar(100)
   created_at       DateTime           @default(now())
-  updated_at       DateTime
+  updated_at       DateTime           @default(now())
   img_url          String?            @db.VarChar(2048)
   end_date         String             @db.VarChar(20)
   start_date       String             @db.VarChar(20)
-  venue            String?            @db.VarChar(100)
+  venue            String             @db.VarChar(100)
   concert_setlists concert_setlists[]
   setlist_songs    setlist_songs[]
 
@@ -281,7 +280,7 @@ model songs {
   pronunciation String?         @db.Text
   translation   String?         @db.Text
   created_at    DateTime        @default(now())
-  updated_at    DateTime
+  updated_at    DateTime        @default(now())
   lyrics        String?         @db.Text
   youtube_id    String?         @db.VarChar(200)
   setlist_songs setlist_songs[]
@@ -290,21 +289,33 @@ model songs {
 }
 
 model users {
-  id                  Int                @id @default(autoincrement())
-  interest_concert_id Int?
-  provider            users_provider
-  provider_id         String?            @unique
-  email               String?            @db.VarChar(255)
-  nickname            String?            @unique @db.VarChar(50)
-  marketing_consent   Boolean?
-  created_at          DateTime           @default(now())
-  updated_at          DateTime
-  deleted_at          DateTime?
-  refresh_token       String?            @db.Text
-  concert_comments    concert_comments[]
-  concerts            concerts?          @relation(fields: [interest_concert_id], references: [id])
+  id                       Int                @id @default(autoincrement())
+  interest_concert_id      Int?
+  provider                 users_provider
+  provider_id              String?            @unique
+  email                    String?            @db.VarChar(255)
+  nickname                 String             @unique @db.VarChar(50)
+  marketing_consent        Boolean            @default(false)
+  created_at               DateTime           @default(now())
+  updated_at               DateTime           @default(now())
+  deleted_at               DateTime?
+  refresh_token            String?            @db.Text
+  refresh_token_expires_at DateTime?
+  concert_comments         concert_comments[]
+  concerts                 concerts?          @relation(fields: [interest_concert_id], references: [id])
 
   @@index([interest_concert_id], map: "users_interest_concert_id_fkey")
+}
+
+model info {
+  id           Int            @id @default(autoincrement())
+  category     String         @db.VarChar(30)
+  content      String         @db.VarChar(100)
+  img_url      String?        @db.VarChar(2048)
+  created_at   DateTime       @default(now())
+  updated_at   DateTime       @default(now())
+  venue        String?        @db.VarChar(255)
+  concert_info concert_info[]
 }
 
 enum genres_name {
@@ -336,13 +347,14 @@ enum concert_genres_name {
   ELECTRONIC
 }
 
+enum schedule_type {
+  CONCERT
+  TICKETING
+}
+
 enum concerts_status {
   ONGOING
   UPCOMING
   COMPLETED
-}
-
-enum schedule_type {
-  CONCERT
-  TICKETING
+  CANCELED
 }

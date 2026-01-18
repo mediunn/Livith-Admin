@@ -83,3 +83,41 @@ export async function PUT(
     );
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id: idParam } = await params;
+    const id = parseInt(idParam);
+
+    if (isNaN(id)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid ID' },
+        { status: 400 }
+      );
+    }
+
+    // Delete related setlist_songs first
+    await prisma.setlist_songs.deleteMany({
+      where: { song_id: id },
+    });
+
+    // Delete the song
+    await prisma.songs.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Song deleted successfully',
+    });
+  } catch (error) {
+    console.error('Song delete error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to delete song' },
+      { status: 500 }
+    );
+  }
+}

@@ -4,10 +4,11 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id);
+    const { id: idParam } = await params;
+    const id = parseInt(idParam);
 
     if (isNaN(id)) {
       return NextResponse.json(
@@ -35,6 +36,38 @@ export async function GET(
     console.error('Artist detail error:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to fetch artist details' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id: idParam } = await params;
+    const id = parseInt(idParam);
+
+    if (isNaN(id)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid ID' },
+        { status: 400 }
+      );
+    }
+
+    await prisma.artists.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Artist deleted successfully',
+    });
+  } catch (error) {
+    console.error('Artist delete error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to delete artist' },
       { status: 500 }
     );
   }

@@ -1076,11 +1076,11 @@ export default function DashboardPage() {
   };
 
   const formatDate = (date: string | Date) => {
-    return new Date(date).toLocaleDateString('ko-KR', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
   const extractInstagramUsername = (url: string | null) => {
@@ -2188,8 +2188,14 @@ export default function DashboardPage() {
 
       {/* User Detail Modal */}
       {userDetail && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-md mx-4">
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={() => setUserDetail(null)}
+        >
+          <div
+            className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-md mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="px-6 py-4 border-b border-livith-black-50 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-livith-white">👤 사용자 정보</h3>
               <button
@@ -2240,8 +2246,14 @@ export default function DashboardPage() {
 
       {/* Comment Detail Modal */}
       {commentDetail && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-md mx-4">
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={() => setCommentDetail(null)}
+        >
+          <div
+            className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-md mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="px-6 py-4 border-b border-livith-black-50 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-livith-white">💬 댓글 정보</h3>
               <button
@@ -2304,8 +2316,14 @@ export default function DashboardPage() {
 
       {/* Section Detail Modal */}
       {(sectionDetail || isLoadingSectionDetail) && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-2xl mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={() => setSectionDetail(null)}
+        >
+          <div
+            className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-2xl mx-4 max-h-[80vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
             {isLoadingSectionDetail ? (
               <div className="p-8 flex items-center justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-livith-yellow-60"></div>
@@ -2435,8 +2453,14 @@ export default function DashboardPage() {
 
       {/* Concert Detail Modal */}
       {(concertDetail || isLoadingDetail) && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-4xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={() => setConcertDetail(null)}
+        >
+          <div
+            className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-4xl mx-4 max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
             {isLoadingDetail ? (
               <div className="p-8 flex items-center justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-livith-yellow-60"></div>
@@ -2798,8 +2822,14 @@ export default function DashboardPage() {
 
       {/* Setlist Detail Modal */}
       {(setlistDetail || isLoadingDetail) && !concertDetail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-livith-black-80 rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setSetlistDetail(null)}
+        >
+          <div
+            className="bg-livith-black-80 rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
             {isLoadingDetail && !setlistDetail ? (
               <div className="p-8 text-center text-livith-black-30">로딩 중...</div>
             ) : setlistDetail && (
