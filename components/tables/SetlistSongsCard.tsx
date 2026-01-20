@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { SearchModal } from './SearchModal';
+import { createData, updateData } from '@/app/actions';
+import { useToast } from '@/hooks/use-toast';
 
 interface SetlistSongsCardProps {
   title: string;
@@ -19,7 +21,9 @@ interface SetlistSongsCardProps {
 }
 
 export function SetlistSongsCard({ title, description, data, fields, onDataChange }: SetlistSongsCardProps) {
+  const { toast } = useToast();
   const [rows, setRows] = useState(data);
+  const [isUploading, setIsUploading] = useState(false);
   const [searchModal, setSearchModal] = useState<{
     isOpen: boolean;
     type: 'setlist' | 'song' | null;
@@ -157,6 +161,76 @@ export function SetlistSongsCard({ title, description, data, fields, onDataChang
     });
   };
 
+  const handleUpload = async () => {
+    const rowsToUpload = rows.filter(row => row._isNew || row._isModified);
+    if (rowsToUpload.length === 0) {
+      toast({
+        title: '업로드할 데이터 없음',
+        description: '변경된 데이터가 없습니다.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      // Group by setlist and assign order_index
+      const grouped: Record<string, any[]> = {};
+      rowsToUpload.forEach(row => {
+        const setlistId = row.setlist_id || 'new';
+        if (!grouped[setlistId]) grouped[setlistId] = [];
+        grouped[setlistId].push(row);
+      });
+
+      for (const [setlistId, songs] of Object.entries(grouped)) {
+        for (let idx = 0; idx < songs.length; idx++) {
+          const row = songs[idx];
+          const dataWithOrder = { ...row, order_index: idx };
+
+          if (row._isNew) {
+            const { _isNew, _isModified, id, created_at, updated_at, deleted_at, _originalIndex, ...rowData } = dataWithOrder;
+            const result = await createData('setlist_songs', rowData);
+            if (result.success) successCount++;
+            else errorCount++;
+          } else if (row._isModified && row.id) {
+            const { _isNew, _isModified, id, created_at, updated_at, deleted_at, _originalIndex, ...rowData } = dataWithOrder;
+            const result = await updateData('setlist_songs', row.id, rowData);
+            if (result.success) successCount++;
+            else errorCount++;
+          }
+        }
+      }
+
+      if (errorCount > 0) {
+        toast({
+          title: '일부 업로드 실패',
+          description: `${successCount}개 성공, ${errorCount}개 실패`,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: '업로드 완료',
+          description: `${successCount}개 데이터가 저장되었습니다.`,
+        });
+        setRows([]);
+        onDataChange([]);
+      }
+    } catch (error) {
+      toast({
+        title: '업로드 실패',
+        description: '데이터 저장 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const hasChanges = rows.some(row => row._isNew || row._isModified);
+
   const isDateField = (fieldName: string): boolean => {
     const dateFields = [
       'debut_date', 'start_date', 'end_date', 'scheduled_at', 'setlist_date'
@@ -229,8 +303,17 @@ export function SetlistSongsCard({ title, description, data, fields, onDataChang
           <h3 className="text-lg font-semibold text-livith-white">{title}</h3>
           <p className="text-livith-black-50 text-sm">{description}</p>
         </div>
-        <div className="bg-livith-yellow-60 text-livith-black-100 px-3 py-1 rounded-full text-sm font-medium">
-          {rows.length} rows
+        <div className="flex items-center gap-3">
+          <div className="bg-livith-yellow-60 text-livith-black-100 px-3 py-1 rounded-full text-sm font-medium">
+            {rows.length} rows
+          </div>
+          <Button
+            onClick={handleUpload}
+            disabled={!hasChanges || isUploading}
+            className="bg-livith-yellow-60 text-livith-black-100 hover:bg-livith-yellow-30 disabled:opacity-50"
+          >
+            {isUploading ? '업로드 중...' : '업로드'}
+          </Button>
         </div>
       </div>
 

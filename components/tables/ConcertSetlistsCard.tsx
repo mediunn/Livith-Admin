@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SearchModal } from './SearchModal';
+import { createData, updateData } from '@/app/actions';
+import { useToast } from '@/hooks/use-toast';
 
 interface ConcertSetlistsCardProps {
   title: string;
@@ -19,7 +21,9 @@ interface ConcertSetlistsCardProps {
 }
 
 export function ConcertSetlistsCard({ title, description, data, fields, onDataChange }: ConcertSetlistsCardProps) {
+  const { toast } = useToast();
   const [rows, setRows] = useState(data);
+  const [isUploading, setIsUploading] = useState(false);
   const [searchModal, setSearchModal] = useState<{
     isOpen: boolean;
     type: 'concert' | 'setlist' | null;
@@ -106,6 +110,65 @@ export function ConcertSetlistsCard({ title, description, data, fields, onDataCh
     setRows(updated);
     onDataChange(updated);
   };
+
+  const handleUpload = async () => {
+    const rowsToUpload = rows.filter(row => row._isNew || row._isModified);
+    if (rowsToUpload.length === 0) {
+      toast({
+        title: '업로드할 데이터 없음',
+        description: '변경된 데이터가 없습니다.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (const row of rowsToUpload) {
+        const dataWithStatus = { ...row, status: '' };
+
+        if (row._isNew) {
+          const { _isNew, _isModified, id, created_at, updated_at, deleted_at, ...rowData } = dataWithStatus;
+          const result = await createData('concert_setlists', rowData);
+          if (result.success) successCount++;
+          else errorCount++;
+        } else if (row._isModified && row.id) {
+          const { _isNew, _isModified, id, created_at, updated_at, deleted_at, ...rowData } = dataWithStatus;
+          const result = await updateData('concert_setlists', row.id, rowData);
+          if (result.success) successCount++;
+          else errorCount++;
+        }
+      }
+
+      if (errorCount > 0) {
+        toast({
+          title: '일부 업로드 실패',
+          description: `${successCount}개 성공, ${errorCount}개 실패`,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: '업로드 완료',
+          description: `${successCount}개 데이터가 저장되었습니다.`,
+        });
+        setRows([]);
+        onDataChange([]);
+      }
+    } catch (error) {
+      toast({
+        title: '업로드 실패',
+        description: '데이터 저장 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const hasChanges = rows.some(row => row._isNew || row._isModified);
 
   const isDateField = (fieldName: string): boolean => {
     const dateFields = [
@@ -204,8 +267,17 @@ export function ConcertSetlistsCard({ title, description, data, fields, onDataCh
           <h3 className="text-lg font-semibold text-livith-white">{title}</h3>
           <p className="text-livith-black-50 text-sm">{description}</p>
         </div>
-        <div className="bg-livith-yellow-60 text-livith-black-100 px-3 py-1 rounded-full text-sm font-medium">
-          {rows.length} rows
+        <div className="flex items-center gap-3">
+          <div className="bg-livith-yellow-60 text-livith-black-100 px-3 py-1 rounded-full text-sm font-medium">
+            {rows.length} rows
+          </div>
+          <Button
+            onClick={handleUpload}
+            disabled={!hasChanges || isUploading}
+            className="bg-livith-yellow-60 text-livith-black-100 hover:bg-livith-yellow-30 disabled:opacity-50"
+          >
+            {isUploading ? '업로드 중...' : '업로드'}
+          </Button>
         </div>
       </div>
 

@@ -225,6 +225,9 @@ export default function DashboardPage() {
   const [setlistSongQuery, setSetlistSongQuery] = useState('');
   const [setlistSongResults, setSetlistSongResults] = useState<any[]>([]);
   const [showSetlistSongResults, setShowSetlistSongResults] = useState(false);
+  const [setlistConcertQuery, setSetlistConcertQuery] = useState('');
+  const [setlistConcertResults, setSetlistConcertResults] = useState<any[]>([]);
+  const [showSetlistConcertResults, setShowSetlistConcertResults] = useState(false);
   const [draggedSongId, setDraggedSongId] = useState<number | null>(null);
   const [dragOverSongId, setDragOverSongId] = useState<number | null>(null);
   const { toast } = useToast();
@@ -355,6 +358,31 @@ export default function DashboardPage() {
     const debounce = setTimeout(searchSongs, 300);
     return () => clearTimeout(debounce);
   }, [setlistSongQuery]);
+
+  // Search concerts for setlist
+  useEffect(() => {
+    const searchConcerts = async () => {
+      if (setlistConcertQuery.length < 2) {
+        setSetlistConcertResults([]);
+        setShowSetlistConcertResults(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/dashboard/search?type=concerts&q=${encodeURIComponent(setlistConcertQuery)}`);
+        const result = await response.json();
+        if (result.success) {
+          setSetlistConcertResults(result.data);
+          setShowSetlistConcertResults(true);
+        }
+      } catch (error) {
+        console.error('Concert search error:', error);
+      }
+    };
+
+    const debounce = setTimeout(searchConcerts, 300);
+    return () => clearTimeout(debounce);
+  }, [setlistConcertQuery]);
 
   const handleSelectCommentForReport = (comment: any) => {
     setAddFormData(prev => ({
@@ -504,6 +532,47 @@ export default function DashboardPage() {
     }
   };
 
+  const handleAddConcertToSetlist = async (concert: { id: number; title: string }) => {
+    if (!setlistDetail) return;
+
+    try {
+      const response = await fetch('/api/dashboard/concert_setlists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          concert_id: concert.id,
+          setlist_id: setlistDetail.id,
+          type: 'ONGOING',
+          status: '',
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error('Failed to add concert');
+      }
+
+      // Refresh setlist detail
+      fetchSetlistDetail(setlistDetail.id);
+
+      toast({
+        title: '추가 완료',
+        description: '콘서트가 연결되었습니다.',
+      });
+
+      setSetlistConcertQuery('');
+      setSetlistConcertResults([]);
+      setShowSetlistConcertResults(false);
+    } catch (error) {
+      toast({
+        title: '추가 실패',
+        description: '콘서트 연결 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleDragStart = (e: React.DragEvent, songId: number) => {
     setDraggedSongId(songId);
     e.dataTransfer.effectAllowed = 'move';
@@ -622,7 +691,7 @@ export default function DashboardPage() {
       if (result.success) {
         toast({
           title: '동기화 완료',
-          description: `홈/서치 섹션이 업데이트되었습니다.`,
+          description: `서치 섹션이 업데이트되었습니다.`,
         });
       } else {
         throw new Error(result.error);
@@ -1414,7 +1483,7 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="h-full">
+    <div className="h-full page-content">
       <div className="h-full flex flex-col bg-livith-black-100">
         <div className="bg-livith-black-90 px-8 py-4 border-b border-livith-black-80">
           <h1 className="text-2xl font-bold text-livith-white">Dashboard</h1>
@@ -1436,39 +1505,25 @@ export default function DashboardPage() {
                     {isSyncing ? '동기화 중...' : 'DB로 업데이트'}
                   </button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                  {data.recentlyUpdatedConcerts.map((concert) => (
+                <div className="grid grid-cols-5 gap-3">
+                  {data.recentlyUpdatedConcerts.slice(0, 5).map((concert) => (
                     <div
                       key={concert.id}
-                      className="bg-livith-black-90 rounded-lg border border-livith-black-50 p-4 hover:border-livith-yellow-60 transition-colors cursor-pointer"
+                      className="bg-livith-black-90 rounded-lg border border-livith-black-50 p-3 hover:border-livith-yellow-60 transition-colors cursor-pointer"
                       onClick={() => fetchConcertDetail(concert.id)}
                     >
-                      <div className="flex items-start justify-between mb-2">
-                        <span className={`px-2 py-0.5 rounded text-xs ${
+                      <div className="flex items-start justify-between mb-1">
+                        <span className={`px-1.5 py-0.5 rounded text-xs ${
                           concert.status === 'ONGOING' ? 'bg-green-500/20 text-green-300' :
                           concert.status === 'UPCOMING' ? 'bg-blue-500/20 text-blue-300' :
                           'bg-gray-500/20 text-gray-300'
                         }`}>
                           {concert.status}
                         </span>
-                        <span className="text-livith-black-30 text-xs">#{concert.id}</span>
                       </div>
-                      <h4 className="text-livith-white font-medium text-sm mb-1 line-clamp-2">{concert.title}</h4>
-                      <p className="text-livith-black-30 text-xs mb-2">{concert.artist || '-'}</p>
-                      <div className="text-livith-black-30 text-xs space-y-1">
-                        <p>📅 {concert.start_date} ~ {concert.end_date}</p>
-                        {concert.venue && <p>📍 {concert.venue}</p>}
-                      </div>
-                      <div className="mt-3 pt-3 border-t border-livith-black-50">
-                        <p className="text-livith-yellow-60 text-xs">
-                          Updated: {new Date(concert.updated_at).toLocaleString('ko-KR', {
-                            month: '2-digit',
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </p>
-                      </div>
+                      <h4 className="text-livith-white font-medium text-sm mb-1 line-clamp-1">{concert.title}</h4>
+                      <p className="text-livith-black-30 text-xs line-clamp-1">{concert.artist || '-'}</p>
+                      <p className="text-livith-black-50 text-xs mt-1">📅 {concert.start_date}</p>
                     </div>
                   ))}
                 </div>
@@ -1557,13 +1612,15 @@ export default function DashboardPage() {
                             +
                           </button>
                         </div>
-                        <span className="text-livith-black-30 text-lg">
-                          {isExpanded ? '▲' : '▼'}
+                        <span className={`text-livith-black-30 text-lg collapse-arrow ${isExpanded ? 'expanded' : ''}`}>
+                          ▼
                         </span>
                       </button>
 
-                      {isExpanded && hasRecent && (
-                        <div className="border-t border-livith-black-50">
+                      <div className={`collapsible-content ${isExpanded ? 'expanded' : ''}`}>
+                        <div className="collapsible-inner">
+                          {hasRecent ? (
+                            <div className="border-t border-livith-black-50">
                           <div className="w-full overflow-x-auto overflow-y-auto max-h-[600px] relative">
                             {loadingTable === config.key && (
                               <div className="absolute inset-0 bg-livith-black-80/80 flex items-center justify-center z-10">
@@ -1631,14 +1688,14 @@ export default function DashboardPage() {
                               </button>
                             </div>
                           </div>
+                            </div>
+                          ) : (
+                            <div className="border-t border-livith-black-50 px-6 py-8 text-center text-livith-black-30">
+                              데이터가 없습니다.
+                            </div>
+                          )}
                         </div>
-                      )}
-
-                      {isExpanded && !hasRecent && (
-                        <div className="border-t border-livith-black-50 px-6 py-8 text-center text-livith-black-30">
-                          데이터가 없습니다.
-                        </div>
-                      )}
+                      </div>
                     </div>
                   );
                 })}
@@ -1676,13 +1733,15 @@ export default function DashboardPage() {
                             +
                           </button>
                         </div>
-                        <span className="text-livith-black-30 text-lg">
-                          {isExpanded ? '▲' : '▼'}
+                        <span className={`text-livith-black-30 text-lg collapse-arrow ${isExpanded ? 'expanded' : ''}`}>
+                          ▼
                         </span>
                       </button>
 
-                      {isExpanded && hasRecent && (
-                        <div className="border-t border-livith-black-50">
+                      <div className={`collapsible-content ${isExpanded ? 'expanded' : ''}`}>
+                        <div className="collapsible-inner">
+                          {hasRecent ? (
+                            <div className="border-t border-livith-black-50">
                           <div className="w-full overflow-x-auto overflow-y-auto max-h-[600px] relative">
                             {loadingTable === config.key && (
                               <div className="absolute inset-0 bg-livith-black-80/80 flex items-center justify-center z-10">
@@ -1750,14 +1809,14 @@ export default function DashboardPage() {
                               </button>
                             </div>
                           </div>
+                            </div>
+                          ) : (
+                            <div className="border-t border-livith-black-50 px-6 py-8 text-center text-livith-black-30">
+                              데이터가 없습니다.
+                            </div>
+                          )}
                         </div>
-                      )}
-
-                      {isExpanded && !hasRecent && (
-                        <div className="border-t border-livith-black-50 px-6 py-8 text-center text-livith-black-30">
-                          데이터가 없습니다.
-                        </div>
-                      )}
+                      </div>
                     </div>
                   );
                 })}
@@ -1795,13 +1854,15 @@ export default function DashboardPage() {
                             +
                           </button>
                         </div>
-                        <span className="text-livith-black-30 text-lg">
-                          {isExpanded ? '▲' : '▼'}
+                        <span className={`text-livith-black-30 text-lg collapse-arrow ${isExpanded ? 'expanded' : ''}`}>
+                          ▼
                         </span>
                       </button>
 
-                      {isExpanded && hasRecent && (
-                        <div className="border-t border-livith-black-50">
+                      <div className={`collapsible-content ${isExpanded ? 'expanded' : ''}`}>
+                        <div className="collapsible-inner">
+                          {hasRecent ? (
+                            <div className="border-t border-livith-black-50">
                           <div className="w-full overflow-x-auto overflow-y-auto max-h-[600px] relative">
                             {loadingTable === config.key && (
                               <div className="absolute inset-0 bg-livith-black-80/80 flex items-center justify-center z-10">
@@ -1869,14 +1930,14 @@ export default function DashboardPage() {
                               </button>
                             </div>
                           </div>
+                            </div>
+                          ) : (
+                            <div className="border-t border-livith-black-50 px-6 py-8 text-center text-livith-black-30">
+                              데이터가 없습니다.
+                            </div>
+                          )}
                         </div>
-                      )}
-
-                      {isExpanded && !hasRecent && (
-                        <div className="border-t border-livith-black-50 px-6 py-8 text-center text-livith-black-30">
-                          데이터가 없습니다.
-                        </div>
-                      )}
+                      </div>
                     </div>
                   );
                 })}
@@ -1889,8 +1950,8 @@ export default function DashboardPage() {
 
       {/* Edit Modal */}
       {editModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-md mx-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-overlay">
+          <div className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-md mx-4 modal-content">
             <div className="px-6 py-4 border-b border-livith-black-50">
               <h3 className="text-lg font-semibold text-livith-white">
                 {editModal.tableName.charAt(0).toUpperCase() + editModal.tableName.slice(1)} 수정
@@ -1965,8 +2026,8 @@ export default function DashboardPage() {
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
-          <div className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-sm mx-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] modal-overlay">
+          <div className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-sm mx-4 modal-content">
             <div className="px-6 py-4 border-b border-livith-black-50">
               <h3 className="text-lg font-semibold text-livith-white">삭제 확인</h3>
             </div>
@@ -1999,8 +2060,8 @@ export default function DashboardPage() {
 
       {/* Add Modal */}
       {addModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-md mx-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-overlay">
+          <div className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-md mx-4 modal-content">
             <div className="px-6 py-4 border-b border-livith-black-50">
               <h3 className="text-lg font-semibold text-livith-white">
                 {addModal.tableName.charAt(0).toUpperCase() + addModal.tableName.slice(1)} 추가
@@ -2189,11 +2250,11 @@ export default function DashboardPage() {
       {/* User Detail Modal */}
       {userDetail && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-overlay"
           onClick={() => setUserDetail(null)}
         >
           <div
-            className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-md mx-4"
+            className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-md mx-4 modal-content"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-6 py-4 border-b border-livith-black-50 flex items-center justify-between">
@@ -2247,11 +2308,11 @@ export default function DashboardPage() {
       {/* Comment Detail Modal */}
       {commentDetail && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-overlay"
           onClick={() => setCommentDetail(null)}
         >
           <div
-            className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-md mx-4"
+            className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-md mx-4 modal-content"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-6 py-4 border-b border-livith-black-50 flex items-center justify-between">
@@ -2317,11 +2378,11 @@ export default function DashboardPage() {
       {/* Section Detail Modal */}
       {(sectionDetail || isLoadingSectionDetail) && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-overlay"
           onClick={() => setSectionDetail(null)}
         >
           <div
-            className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-2xl mx-4 max-h-[80vh] overflow-hidden flex flex-col"
+            className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-2xl mx-4 max-h-[80vh] overflow-hidden flex flex-col modal-content"
             onClick={(e) => e.stopPropagation()}
           >
             {isLoadingSectionDetail ? (
@@ -2454,11 +2515,11 @@ export default function DashboardPage() {
       {/* Concert Detail Modal */}
       {(concertDetail || isLoadingDetail) && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-overlay"
           onClick={() => setConcertDetail(null)}
         >
           <div
-            className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-4xl mx-4 max-h-[90vh] overflow-hidden flex flex-col"
+            className="bg-livith-black-80 rounded-lg border border-livith-black-50 w-full max-w-4xl mx-4 max-h-[90vh] overflow-hidden flex flex-col modal-content"
             onClick={(e) => e.stopPropagation()}
           >
             {isLoadingDetail ? (
@@ -2823,11 +2884,11 @@ export default function DashboardPage() {
       {/* Setlist Detail Modal */}
       {(setlistDetail || isLoadingDetail) && !concertDetail && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay"
           onClick={() => setSetlistDetail(null)}
         >
           <div
-            className="bg-livith-black-80 rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col"
+            className="bg-livith-black-80 rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col modal-content"
             onClick={(e) => e.stopPropagation()}
           >
             {isLoadingDetail && !setlistDetail ? (
@@ -2914,7 +2975,7 @@ export default function DashboardPage() {
                         className="w-full px-3 py-2 bg-livith-black-70 border border-livith-black-50 rounded text-black placeholder-livith-black-30 focus:outline-none focus:border-livith-yellow-60"
                       />
                       {showSetlistSongResults && setlistSongResults.length > 0 && (
-                        <div className="absolute z-50 w-full mt-1 bg-[#1a1a1a] border border-livith-black-50 rounded shadow-lg max-h-40 overflow-y-auto">
+                        <div className="absolute z-50 w-full mt-1 bg-[#1a1a1a] border border-livith-black-50 rounded shadow-lg max-h-40 overflow-y-auto dropdown-enter">
                           {setlistSongResults.map((song) => (
                             <button
                               key={song.id}
@@ -2982,12 +3043,50 @@ export default function DashboardPage() {
                   {/* Linked Concerts */}
                   <div className="bg-livith-black-90 rounded-lg p-4">
                     <h4 className="text-livith-yellow-60 font-semibold mb-3">연결된 콘서트 ({setlistDetail.concert_setlists.length})</h4>
+
+                    {/* Add Concert Search */}
+                    <div className="relative mb-3">
+                      <input
+                        type="text"
+                        value={setlistConcertQuery}
+                        onChange={(e) => setSetlistConcertQuery(e.target.value)}
+                        onBlur={() => {
+                          setTimeout(() => {
+                            setShowSetlistConcertResults(false);
+                          }, 200);
+                        }}
+                        onFocus={() => {
+                          if (setlistConcertResults.length > 0) {
+                            setShowSetlistConcertResults(true);
+                          }
+                        }}
+                        placeholder="콘서트 이름으로 검색하여 추가"
+                        className="w-full px-3 py-2 bg-livith-black-70 border border-livith-black-50 rounded text-black placeholder-livith-black-30 focus:outline-none focus:border-livith-yellow-60"
+                      />
+                      {showSetlistConcertResults && setlistConcertResults.length > 0 && (
+                        <div className="absolute z-50 w-full mt-1 bg-[#1a1a1a] border border-livith-black-50 rounded shadow-lg max-h-40 overflow-y-auto dropdown-enter">
+                          {setlistConcertResults.map((concert) => (
+                            <button
+                              key={concert.id}
+                              onClick={() => {
+                                handleAddConcertToSetlist({ id: concert.id, title: concert.title });
+                              }}
+                              className="w-full px-4 py-2 text-left hover:bg-livith-black-60 border-b border-livith-black-50 last:border-b-0 text-livith-white bg-[#1a1a1a]"
+                            >
+                              <p className="text-sm">{concert.title}</p>
+                              <p className="text-xs text-livith-black-30">{concert.artist || '-'} | {concert.venue || '-'}</p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
                     {setlistDetail.concert_setlists.length > 0 ? (
                       <div className="space-y-2">
                         {setlistDetail.concert_setlists.map(cs => (
                           <div key={cs.id} className="flex items-center justify-between p-3 bg-livith-black-70 rounded">
                             <div
-                              className="cursor-pointer hover:opacity-80"
+                              className="cursor-pointer hover:opacity-80 flex-1"
                               onClick={() => {
                                 setSetlistDetail(null);
                                 fetchConcertDetail(cs.concerts.id);
@@ -3046,11 +3145,11 @@ export default function DashboardPage() {
       {/* Artist Detail Modal */}
       {artistDetail && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay"
           onClick={() => setArtistDetail(null)}
         >
           <div
-            className="bg-livith-black-80 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col"
+            className="bg-livith-black-80 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col modal-content"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-6 py-4 border-b border-livith-black-50 flex items-start justify-between">
@@ -3138,7 +3237,7 @@ export default function DashboardPage() {
       {/* Song Detail Modal */}
       {songDetail && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay"
           onClick={() => {
             setSongDetail(null);
             setIsEditingSong(false);

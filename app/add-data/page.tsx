@@ -5,9 +5,7 @@ import { Header } from '@/components/layout/Header';
 import { TableCard } from '@/components/tables/TableCard';
 import { SetlistSongsCard } from '@/components/tables/SetlistSongsCard';
 import { ConcertSetlistsCard } from '@/components/tables/ConcertSetlistsCard';
-import { ConfirmSaveModal } from '@/components/modals/ConfirmSaveModal';
 import { SetlistCreator } from '@/components/setlist/SetlistCreator';
-import { createData, updateData } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 
 const tableCategories = {
@@ -267,8 +265,6 @@ const tableCategories = {
 
 export default function DashboardPage() {
   const { toast } = useToast();
-  const [isSaving, setIsSaving] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [hasSetlistDraft, setHasSetlistDraft] = useState(false);
   const allTables = Object.values(tableCategories).flatMap(category =>
@@ -370,155 +366,20 @@ export default function DashboardPage() {
     window.location.reload();
   };
 
-  const handleOpenConfirmModal = () => {
-    setShowConfirmModal(true);
-  };
-
-  const handleCloseConfirmModal = () => {
-    setShowConfirmModal(false);
-  };
-
-  const handleConfirmSave = async () => {
-    setIsSaving(true);
-    let hasError = false;
-    const errors: string[] = [];
-
-    try {
-      for (const [table, rows] of Object.entries(changes)) {
-        if (table === 'setlist_songs') {
-          const groupedBySetlist: Record<string, any[]> = {};
-          rows.forEach((row) => {
-            const setlistId = row.setlist_id || 'new';
-            if (!groupedBySetlist[setlistId]) {
-              groupedBySetlist[setlistId] = [];
-            }
-            groupedBySetlist[setlistId].push(row);
-          });
-
-          for (const [setlistId, songs] of Object.entries(groupedBySetlist)) {
-            for (let idx = 0; idx < songs.length; idx++) {
-              const row = songs[idx];
-              const dataWithOrder = { ...row, order_index: idx };
-
-              try {
-                if (row._isNew) {
-                  const { _isNew, _isModified, id, created_at, updated_at, deleted_at, ...data } = dataWithOrder;
-                  const result = await createData(table, data);
-                  if (!result.success) {
-                    hasError = true;
-                    errors.push(`${table} 생성 실패: ${result.error}`);
-                  }
-                } else if (row._isModified && row.id) {
-                  const { _isNew, _isModified, id, created_at, updated_at, deleted_at, ...data } = dataWithOrder;
-                  const result = await updateData(table, row.id, data);
-                  if (!result.success) {
-                    hasError = true;
-                    errors.push(`${table} 수정 실패: ${result.error}`);
-                  }
-                }
-              } catch (err) {
-                hasError = true;
-                errors.push(`${table} 처리 중 오류 발생`);
-              }
-            }
-          }
-        } else if (table === 'concert_setlists') {
-          for (const row of rows) {
-            const dataWithStatus = { ...row, status: '' };
-            try {
-              if (row._isNew) {
-                const { _isNew, _isModified, id, created_at, updated_at, deleted_at, ...data } = dataWithStatus;
-                const result = await createData(table, data);
-                if (!result.success) {
-                  hasError = true;
-                  errors.push(`${table} 생성 실패: ${result.error}`);
-                }
-              } else if (row._isModified && row.id) {
-                const { _isNew, _isModified, id, created_at, updated_at, deleted_at, ...data } = dataWithStatus;
-                const result = await updateData(table, row.id, data);
-                if (!result.success) {
-                  hasError = true;
-                  errors.push(`${table} 수정 실패: ${result.error}`);
-                }
-              }
-            } catch (err) {
-              hasError = true;
-              errors.push(`${table} 처리 중 오류 발생`);
-            }
-          }
-        } else {
-          for (const row of rows) {
-            try {
-              if (row._isNew) {
-                const { _isNew, _isModified, id, created_at, updated_at, deleted_at, ...data } = row;
-                const result = await createData(table, data);
-                if (!result.success) {
-                  hasError = true;
-                  errors.push(`${table} 생성 실패: ${result.error}`);
-                }
-              } else if (row._isModified && row.id) {
-                const { _isNew, _isModified, id, created_at, updated_at, deleted_at, ...data } = row;
-                const result = await updateData(table, row.id, data);
-                if (!result.success) {
-                  hasError = true;
-                  errors.push(`${table} 수정 실패: ${result.error}`);
-                }
-              }
-            } catch (err) {
-              hasError = true;
-              errors.push(`${table} 처리 중 오류 발생`);
-            }
-          }
-        }
-      }
-
-      if (hasError) {
-        toast({
-          title: '일부 데이터 저장 실패',
-          description: errors.length > 0 ? errors.slice(0, 3).join('\n') + (errors.length > 3 ? '\n...' : '') : '일부 데이터 저장 중 오류가 발생했습니다.',
-          variant: 'destructive',
-        });
-      } else {
-        // Clear temp save after successful save
-        localStorage.removeItem('livith_temp_save');
-
-        toast({
-          title: '저장 완료',
-          description: '모든 변경사항이 성공적으로 저장되었습니다.',
-        });
-
-        setTimeout(() => {
-          window.location.reload();
-        }, 1000);
-      }
-    } catch (error) {
-      toast({
-        title: '저장 실패',
-        description: error instanceof Error ? error.message : '저장 중 오류가 발생했습니다.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSaving(false);
-      setShowConfirmModal(false);
-    }
-  };
-
   const hasTableChanges = Object.values(changes).some(
     (data) => data.some((row) => row._isNew || row._isModified)
   );
   const hasChanges = hasTableChanges || hasSetlistDraft;
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen page-content">
       <div className="flex-1 flex flex-col bg-livith-black-100">
         <Header
           title="Database Management"
           description="Add and manage data across all tables"
-          onSaveAll={handleOpenConfirmModal}
           onTempSave={handleTempSave}
           onReset={handleReset}
           hasChanges={hasChanges}
-          isSaving={isSaving}
         />
 
         <main className="flex-1 overflow-auto p-6">
@@ -537,13 +398,14 @@ export default function DashboardPage() {
                     className="w-full px-6 py-4 flex items-center justify-between hover:bg-livith-black-70 transition-colors"
                   >
                     <h2 className="text-lg font-bold text-livith-yellow-60">{category.title}</h2>
-                    <span className="text-livith-black-30 text-lg">
-                      {isExpanded ? '▲' : '▼'}
+                    <span className={`text-livith-black-30 text-lg collapse-arrow ${isExpanded ? 'expanded' : ''}`}>
+                      ▼
                     </span>
                   </button>
 
-                  {isExpanded && (
-                    <div className="border-t border-livith-black-50 p-6 flex flex-col gap-6">
+                  <div className={`collapsible-content ${isExpanded ? 'expanded' : ''}`}>
+                    <div className="collapsible-inner">
+                      <div className="border-t border-livith-black-50 p-6 flex flex-col gap-6">
                       {Object.entries(category.tables).map(([tableName, config]) => {
                         if (tableName === 'setlist_songs') {
                           return (
@@ -573,6 +435,7 @@ export default function DashboardPage() {
                               key={tableName}
                               title={config.title}
                               description={config.description}
+                              tableName={tableName}
                               data={[]}
                               fields={config.fields}
                               onDataChange={(data) => handleDataChange(tableName, data)}
@@ -580,22 +443,15 @@ export default function DashboardPage() {
                           );
                         }
                       })}
+                      </div>
                     </div>
-                  )}
+                  </div>
                 </div>
               );
             })}
           </div>
         </main>
       </div>
-
-      <ConfirmSaveModal
-        isOpen={showConfirmModal}
-        onClose={handleCloseConfirmModal}
-        onConfirm={handleConfirmSave}
-        changes={changes}
-        isLoading={isSaving}
-      />
     </div>
   );
 }

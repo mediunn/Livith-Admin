@@ -6,14 +6,12 @@ import { Button } from '@/components/ui/button';
 interface HeaderProps {
   title: string;
   description: string;
-  onSaveAll: () => void;
   onTempSave?: () => void;
   onReset?: () => void;
-  hasChanges: boolean;
-  isSaving: boolean;
+  hasChanges?: boolean;
 }
 
-export function Header({ title, description, onSaveAll, onTempSave, onReset, hasChanges, isSaving }: HeaderProps) {
+export function Header({ title, description, onTempSave, onReset, hasChanges }: HeaderProps) {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   return (
@@ -44,13 +42,6 @@ export function Header({ title, description, onSaveAll, onTempSave, onReset, has
               임시저장
             </Button>
           )}
-          <Button
-            onClick={onSaveAll}
-            disabled={!hasChanges || isSaving}
-            className="bg-livith-yellow-60 text-livith-black-100 hover:bg-livith-yellow-30 disabled:opacity-50"
-          >
-            {isSaving ? '업로드 중...' : '업로드'}
-          </Button>
         </div>
       </header>
 

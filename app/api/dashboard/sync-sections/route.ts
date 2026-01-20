@@ -20,21 +20,6 @@ export async function POST() {
       }, { status: 400 });
     }
 
-    // Get home_sections with title containing "최근" or "업데이트" or use the first section
-    let homeSection = await prisma.home_sections.findFirst({
-      where: {
-        OR: [
-          { section_title: { contains: '최근' } },
-          { section_title: { contains: '업데이트' } },
-        ],
-      },
-    });
-
-    // If no matching section found, get the first one
-    if (!homeSection) {
-      homeSection = await prisma.home_sections.findFirst();
-    }
-
     // Get search_sections with title containing "최근" or "업데이트" or use the first section
     let searchSection = await prisma.search_sections.findFirst({
       where: {
@@ -51,33 +36,10 @@ export async function POST() {
     }
 
     const results = {
-      homeSectionUpdated: false,
       searchSectionUpdated: false,
     };
 
-    // Update home_concert_sections
-    if (homeSection) {
-      // Delete existing entries for this section
-      await prisma.home_concert_sections.deleteMany({
-        where: { home_section_id: homeSection.id },
-      });
-
-      // Create new entries
-      await prisma.home_concert_sections.createMany({
-        data: recentConcerts.map((concert, index) => ({
-          home_section_id: homeSection!.id,
-          concert_id: concert.id,
-          section_title: homeSection!.section_title,
-          concert_title: concert.title,
-          sorted_index: index,
-          updated_at: new Date(),
-        })),
-      });
-
-      results.homeSectionUpdated = true;
-    }
-
-    // Update search_concert_sections
+    // Update search_concert_sections only
     if (searchSection) {
       // Delete existing entries for this section
       await prisma.search_concert_sections.deleteMany({

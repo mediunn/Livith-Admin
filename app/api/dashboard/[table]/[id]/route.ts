@@ -373,6 +373,19 @@ export async function PUT(
         });
         break;
 
+      case 'concert_setlists':
+        result = await prisma.concert_setlists.update({
+          where: { id: numericId },
+          data: {
+            concert_id: body.concert_id,
+            setlist_id: body.setlist_id,
+            type: body.type || 'ONGOING',
+            status: body.status || '',
+            updated_at: new Date(),
+          },
+        });
+        break;
+
       default:
         return NextResponse.json(
           { success: false, error: 'Unknown table' },

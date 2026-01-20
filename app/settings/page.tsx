@@ -54,7 +54,7 @@ export default function SettingsPage() {
   }, []);
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen page-content">
       <div className="flex-1 flex flex-col bg-livith-black-100">
         <div className="bg-livith-black-90 px-8 py-4 border-b border-livith-black-80">
           <h1 className="text-2xl font-bold text-livith-white">Settings</h1>

@@ -23,9 +23,9 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body className={`${notoSansKR.variable} font-sans antialiased`}>
-        <div className="flex h-screen overflow-hidden">
+        <div className="flex flex-col h-screen overflow-hidden bg-livith-black-100">
           <Sidebar />
-          <div className="flex-1 min-w-0 overflow-hidden">
+          <div className="flex-1 min-w-0 overflow-auto bg-livith-black-100">
             {children}
           </div>
         </div>

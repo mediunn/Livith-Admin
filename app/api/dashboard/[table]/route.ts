@@ -276,6 +276,30 @@ export async function POST(
         });
         break;
 
+      case 'concert_setlists':
+        result = await prisma.concert_setlists.create({
+          data: {
+            concert_id: body.concert_id,
+            setlist_id: body.setlist_id,
+            type: body.type || 'ONGOING',
+            status: body.status || '',
+            created_at: new Date(),
+            updated_at: new Date(),
+          },
+        });
+        break;
+
+      case 'concert_genres':
+        result = await prisma.concert_genres.create({
+          data: {
+            concert_id: body.concert_id,
+            genre_id: body.genre_id,
+            created_at: new Date(),
+            updated_at: new Date(),
+          },
+        });
+        break;
+
       default:
         return NextResponse.json(
           { success: false, error: 'Unknown table' },

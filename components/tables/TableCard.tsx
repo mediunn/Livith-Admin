@@ -5,10 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SearchModal } from './SearchModal';
+import { createData, updateData } from '@/app/actions';
+import { useToast } from '@/hooks/use-toast';
 
 interface TableCardProps {
   title: string;
   description: string;
+  tableName: string;
   data: any[];
   fields: Array<{
     name: string;
@@ -18,8 +21,10 @@ interface TableCardProps {
   onDataChange: (newData: any[]) => void;
 }
 
-export function TableCard({ title, description, data, fields, onDataChange }: TableCardProps) {
+export function TableCard({ title, description, tableName, data, fields, onDataChange }: TableCardProps) {
+  const { toast } = useToast();
   const [rows, setRows] = useState(data);
+  const [isUploading, setIsUploading] = useState(false);
   const [searchModal, setSearchModal] = useState<{
     isOpen: boolean;
     type: string | null;
@@ -187,6 +192,70 @@ export function TableCard({ title, description, data, fields, onDataChange }: Ta
     onDataChange(updated);
   };
 
+  const handleUpload = async () => {
+    const rowsToUpload = rows.filter(row => row._isNew || row._isModified);
+    if (rowsToUpload.length === 0) {
+      toast({
+        title: '업로드할 데이터 없음',
+        description: '변경된 데이터가 없습니다.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (const row of rowsToUpload) {
+        if (row._isNew) {
+          const { _isNew, _isModified, id, created_at, updated_at, deleted_at, ...rowData } = row;
+          const result = await createData(tableName, rowData);
+          if (result.success) {
+            successCount++;
+          } else {
+            errorCount++;
+          }
+        } else if (row._isModified && row.id) {
+          const { _isNew, _isModified, id, created_at, updated_at, deleted_at, ...rowData } = row;
+          const result = await updateData(tableName, row.id, rowData);
+          if (result.success) {
+            successCount++;
+          } else {
+            errorCount++;
+          }
+        }
+      }
+
+      if (errorCount > 0) {
+        toast({
+          title: '일부 업로드 실패',
+          description: `${successCount}개 성공, ${errorCount}개 실패`,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: '업로드 완료',
+          description: `${successCount}개 데이터가 저장되었습니다.`,
+        });
+        // Clear the rows after successful upload
+        setRows([]);
+        onDataChange([]);
+      }
+    } catch (error) {
+      toast({
+        title: '업로드 실패',
+        description: '데이터 저장 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const hasChanges = rows.some(row => row._isNew || row._isModified);
+
   const isAutoFilledField = (fieldName: string, allFieldNames: string[]): boolean => {
     // If it's the Artists table (has 'artist' but not 'artist_id'), allow editing 'artist'
     if (fieldName === 'artist' && !allFieldNames.includes('artist_id')) {
@@ -324,8 +393,17 @@ export function TableCard({ title, description, data, fields, onDataChange }: Ta
           <h3 className="text-lg font-semibold text-livith-white">{title}</h3>
           <p className="text-livith-black-50 text-sm">{description}</p>
         </div>
-        <div className="bg-livith-yellow-60 text-livith-black-100 px-3 py-1 rounded-full text-sm font-medium">
-          {rows.length} rows
+        <div className="flex items-center gap-3">
+          <div className="bg-livith-yellow-60 text-livith-black-100 px-3 py-1 rounded-full text-sm font-medium">
+            {rows.length} rows
+          </div>
+          <Button
+            onClick={handleUpload}
+            disabled={!hasChanges || isUploading}
+            className="bg-livith-yellow-60 text-livith-black-100 hover:bg-livith-yellow-30 disabled:opacity-50"
+          >
+            {isUploading ? '업로드 중...' : '업로드'}
+          </Button>
         </div>
       </div>
 
