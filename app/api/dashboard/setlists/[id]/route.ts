@@ -66,6 +66,48 @@ export async function GET(
   }
 }
 
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const id = parseInt(params.id);
+
+    if (isNaN(id)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid ID' },
+        { status: 400 }
+      );
+    }
+
+    const body = await request.json();
+
+    const result = await prisma.setlists.update({
+      where: { id },
+      data: {
+        title: body.title,
+        artist: body.artist || null,
+        start_date: body.start_date,
+        end_date: body.end_date,
+        venue: body.venue || null,
+        img_url: body.img_url || null,
+        updated_at: new Date(),
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error('Setlist update error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to update setlist' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
