@@ -28,11 +28,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. Create setlist
+    // 1. Create setlist (handle duplicate title+artist)
+    let setlistTitle = setlist.title || concert.title;
+    const setlistArtist = setlist.artist || concert.artist;
+
+    // Check if a setlist with the same title+artist already exists
+    const existingSetlist = await prisma.setlists.findFirst({
+      where: { title: setlistTitle, artist: setlistArtist },
+    });
+
+    if (existingSetlist) {
+      // Find how many setlists with similar titles exist to generate unique suffix
+      const similarSetlists = await prisma.setlists.findMany({
+        where: { title: { startsWith: setlistTitle }, artist: setlistArtist },
+        select: { title: true },
+      });
+      setlistTitle = `${setlistTitle} (${similarSetlists.length + 1})`;
+    }
+
     const newSetlist = await prisma.setlists.create({
       data: {
-        title: setlist.title || concert.title,
-        artist: setlist.artist || concert.artist,
+        title: setlistTitle,
+        artist: setlistArtist,
         start_date: setlist.start_date || concert.start_date,
         end_date: setlist.end_date || concert.end_date,
         venue: setlist.venue || concert.venue,
@@ -62,23 +79,34 @@ export async function POST(request: NextRequest) {
       const song = songs[i];
       let songId = song.id;
 
-      // If song doesn't have an ID, create it
+      // If song doesn't have an ID, find existing or create
       if (!songId) {
-        const newSong = await prisma.songs.create({
-          data: {
-            title: song.title,
-            artist: song.artist || concert.artist,
-            youtube_id: song.youtube_id || null,
-            img_url: song.img_url || null,
-            lyrics: song.lyrics || null,
-            pronunciation: song.pronunciation || null,
-            translation: song.translation || null,
-            created_at: new Date(),
-            updated_at: new Date(),
-          },
+        const songArtist = song.artist || concert.artist;
+
+        // Check if a song with the same title+artist already exists
+        const existingSong = await prisma.songs.findFirst({
+          where: { title: song.title, artist: songArtist },
         });
-        songId = newSong.id;
-        createdSongs.push(newSong);
+
+        if (existingSong) {
+          songId = existingSong.id;
+        } else {
+          const newSong = await prisma.songs.create({
+            data: {
+              title: song.title,
+              artist: songArtist,
+              youtube_id: song.youtube_id || null,
+              img_url: song.img_url || null,
+              lyrics: song.lyrics || null,
+              pronunciation: song.pronunciation || null,
+              translation: song.translation || null,
+              created_at: new Date(),
+              updated_at: new Date(),
+            },
+          });
+          songId = newSong.id;
+          createdSongs.push(newSong);
+        }
       }
 
       // Create setlist_songs relationship
