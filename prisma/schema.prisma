@@ -10,7 +10,7 @@ datasource db {
 
 model artists {
   id            Int        @id @default(autoincrement())
-  artist        String     @db.VarChar(100)
+  artist        String     @unique(map: "uk_artist") @db.VarChar(100)
   category      String?    @db.VarChar(30)
   detail        String?    @db.Text
   instagram_url String?    @db.VarChar(2048)
@@ -19,6 +19,7 @@ model artists {
   created_at    DateTime   @default(now())
   updated_at    DateTime   @default(now())
   debut_date    String?    @db.VarChar(30)
+  twitter_url   String?    @db.VarChar(2048)
   concerts      concerts[]
 }
 
@@ -30,6 +31,7 @@ model banners {
   created_at DateTime @default(now())
   updated_at DateTime @default(now())
   content    String   @db.VarChar(100)
+  link_url   String?  @db.VarChar(2048)
 }
 
 model concert_comments {
@@ -92,18 +94,18 @@ model concert_setlists {
 model concerts {
   id                      Int                       @id @default(autoincrement())
   code                    String?                   @unique @db.VarChar(20)
-  title                   String                    @unique(map: "uk_title") @db.VarChar(300)
-  start_date              String                    @db.VarChar(20)
-  end_date                String                    @db.VarChar(20)
+  title                   String?                   @unique(map: "uk_title") @db.VarChar(300)
+  start_date              String?                   @db.VarChar(20)
+  end_date                String?                   @db.VarChar(20)
   status                  concerts_status
-  poster                  String                    @db.VarChar(2048)
+  poster                  String?                   @db.VarChar(2048)
   artist                  String                    @db.VarChar(100)
   created_at              DateTime                  @default(now())
   updated_at              DateTime                  @default(now())
   artist_id               Int
   ticket_site             String?                   @db.VarChar(50)
   ticket_url              String?                   @db.VarChar(2048)
-  venue                   String                    @db.VarChar(100)
+  venue                   String?                   @db.VarChar(100)
   introduction            String                    @db.Text
   label                   String?                   @db.VarChar(50)
   concert_comments        concert_comments[]
@@ -116,10 +118,11 @@ model concerts {
   md                      md[]
   schedule                schedule[]
   search_concert_sections search_concert_sections[]
-  users                   users[]
+  user_interest_concerts  user_interest_concerts[]
 
   @@unique([start_date, id])
   @@unique([title, id])
+  @@unique([end_date, id])
   @@index([artist_id], map: "concerts_artist_id_fkey")
   @@fulltext([title, artist])
 }
@@ -139,9 +142,12 @@ model cultures {
 }
 
 model genres {
-  id             Int              @id @default(autoincrement())
-  name           genres_name      @unique
-  concert_genres concert_genres[]
+  id                     Int                      @id @default(autoincrement())
+  name                   genres_name              @unique
+  img_url                String                   @db.VarChar(2048)
+  concert_genres         concert_genres[]
+  representative_artists representative_artists[]
+  user_genres            user_genres[]
 }
 
 model home_concert_sections {
@@ -208,6 +214,7 @@ model schedule {
   type         schedule_type?
   concerts     concerts       @relation(fields: [concert_id], references: [id])
 
+  @@unique([concert_id, scheduled_at, category], map: "uk_schedule")
   @@index([concert_id], map: "schedule_concert_id_fkey")
 }
 
@@ -289,22 +296,25 @@ model songs {
 }
 
 model users {
-  id                       Int                @id @default(autoincrement())
-  interest_concert_id      Int?
+  id                       Int                      @id @default(autoincrement())
   provider                 users_provider
-  provider_id              String?            @unique
-  email                    String?            @db.VarChar(255)
-  nickname                 String             @unique @db.VarChar(50)
-  marketing_consent        Boolean            @default(false)
-  created_at               DateTime           @default(now())
-  updated_at               DateTime           @default(now())
+  provider_id              String?                  @unique
+  email                    String?                  @db.VarChar(255)
+  nickname                 String                   @unique @db.VarChar(50)
+  marketing_consent        Boolean                  @default(false)
+  created_at               DateTime                 @default(now())
+  updated_at               DateTime                 @default(now())
   deleted_at               DateTime?
-  refresh_token            String?            @db.Text
+  refresh_token            String?                  @db.Text
   refresh_token_expires_at DateTime?
   concert_comments         concert_comments[]
-  concerts                 concerts?          @relation(fields: [interest_concert_id], references: [id])
-
-  @@index([interest_concert_id], map: "users_interest_concert_id_fkey")
+  fcm_tokens               fcm_tokens[]
+  notification_consents    notification_consents[]
+  notification_sets        notification_sets?
+  notificationhistories    notificationhistories[]
+  user_artists             user_artists[]
+  user_genres              user_genres[]
+  user_interest_concerts   user_interest_concerts[]
 }
 
 model info {
@@ -318,13 +328,139 @@ model info {
   concert_info concert_info[]
 }
 
-enum genres_name {
-  JPOP
-  ROCK_METAL
-  RAP_HIPHOP
-  CLASSIC_JAZZ
-  ACOUSTIC
-  ELECTRONIC
+model concert_notification_queue {
+  id         Int      @id @default(autoincrement())
+  concert_id Int
+  event_type String   @db.VarChar(50)
+  created_at DateTime @default(now())
+  processed  Boolean  @default(false)
+
+  @@index([processed, created_at])
+}
+
+model crawl_history {
+  id              Int      @id @default(autoincrement())
+  account         String   @unique(map: "uk_account") @db.VarChar(100)
+  last_crawled_at DateTime @default(now())
+  created_at      DateTime @default(now())
+  updated_at      DateTime @default(now())
+}
+
+model fcm_tokens {
+  id         Int      @id @default(autoincrement())
+  user_id    Int
+  token      String   @db.VarChar(255)
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+  users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, token])
+  @@index([user_id])
+}
+
+model notification_consents {
+  id        Int                        @id @default(autoincrement())
+  user_id   Int
+  type      notification_consents_type
+  is_agreed Boolean
+  agreed_at DateTime                   @default(now())
+  users     users                      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, type])
+}
+
+model notification_sets {
+  id              Int      @id @default(autoincrement())
+  user_id         Int      @unique
+  ticket_alert    Boolean  @default(true)
+  info_alert      Boolean  @default(true)
+  interest_alert  Boolean  @default(true)
+  recommend_alert Boolean  @default(false)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @default(now())
+  night_alert     Boolean  @default(false)
+  benefit_alert   Boolean  @default(false)
+  users           users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+}
+
+model notificationhistories {
+  id          Int                        @id @default(autoincrement())
+  user_id     Int
+  type        notificationhistories_type
+  title       String                     @db.VarChar(100)
+  content     String                     @db.VarChar(500)
+  is_read     Boolean                    @default(false)
+  created_at  DateTime                   @default(now())
+  target_id   String?                    @db.VarChar(500)
+  schedule_id Int?
+  users       users                      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([schedule_id, type])
+  @@index([user_id, created_at])
+  @@index([user_id, is_read])
+}
+
+model representative_artists {
+  id           Int            @id @default(autoincrement())
+  genre_id     Int
+  artist_name  String         @db.VarChar(100)
+  img_url      String         @db.VarChar(2048)
+  created_at   DateTime       @default(now())
+  updated_at   DateTime       @default(now())
+  genres       genres         @relation(fields: [genre_id], references: [id])
+  user_artists user_artists[]
+
+  @@unique([genre_id, artist_name])
+  @@index([genre_id, created_at])
+}
+
+model user_artists {
+  id                     Int                    @id @default(autoincrement())
+  user_id                Int
+  artist_id              Int
+  artist_name            String                 @db.VarChar(100)
+  created_at             DateTime               @default(now())
+  updated_at             DateTime               @default(now())
+  representative_artists representative_artists @relation(fields: [artist_id], references: [id])
+  users                  users                  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, artist_id])
+  @@index([artist_id])
+  @@index([user_id])
+}
+
+model user_genres {
+  id         Int                    @id @default(autoincrement())
+  user_id    Int
+  genre_id   Int
+  genre_name user_genres_genre_name
+  created_at DateTime               @default(now())
+  updated_at DateTime               @default(now())
+  genres     genres                 @relation(fields: [genre_id], references: [id])
+  users      users                  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, genre_id])
+  @@index([genre_id])
+  @@index([user_id])
+}
+
+model user_interest_concerts {
+  id            Int      @id @default(autoincrement())
+  user_id       Int
+  concert_id    Int
+  concert_title String?  @db.VarChar(300)
+  user_nickname String   @db.VarChar(50)
+  toast_shown   Boolean  @default(false)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @default(now())
+  concerts      concerts @relation(fields: [concert_id], references: [id], onDelete: Cascade)
+  users         users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, concert_id])
+  @@index([concert_id])
+  @@index([user_id])
 }
 
 enum users_provider {
@@ -338,23 +474,61 @@ enum concert_setlists_type {
   EXPECTED
 }
 
-enum concert_genres_name {
-  JPOP
-  ROCK_METAL
-  RAP_HIPHOP
-  CLASSIC_JAZZ
-  ACOUSTIC
-  ELECTRONIC
-}
-
-enum schedule_type {
-  CONCERT
-  TICKETING
-}
-
 enum concerts_status {
   ONGOING
   UPCOMING
   COMPLETED
   CANCELED
+}
+
+enum genres_name {
+  JPOP
+  ROCK_METAL
+  RAP_HIPHOP
+  POP
+  INDIE
+}
+
+enum notification_consents_type {
+  BENEFIT_PUSH
+  NIGHT_PUSH
+}
+
+enum notificationhistories_type {
+  INTEREST_CONCERT
+  PRE_TICKETING_OPEN
+  GENERAL_TICKETING_OPEN
+  PRE_TICKETING_1D
+  GENERAL_TICKETING_1D
+  PRE_TICKETING_30MIN
+  GENERAL_TICKETING_30MIN
+  CONCERT_INFO_UPDATE_SETLIST
+  CONCERT_INFO_UPDATE_MD
+  CONCERT_INFO_UPDATE_DETAIL
+  CONCERT_INFO_UPDATE_SCHEDULE
+  CONCERT_INFO_UPDATE_TICKET
+  ARTIST_CONCERT_OPEN
+  RECOMMEND
+}
+
+enum user_genres_genre_name {
+  JPOP
+  ROCK_METAL
+  RAP_HIPHOP
+  POP
+  INDIE
+}
+
+enum concert_genres_name {
+  JPOP
+  ROCK_METAL
+  RAP_HIPHOP
+  POP
+  INDIE
+}
+
+enum schedule_type {
+  CONCERT
+  PRE_TICKETING
+  GENERAL_TICKETING
 }
