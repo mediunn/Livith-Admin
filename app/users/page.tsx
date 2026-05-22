@@ -1,5 +1,9 @@
 import { prisma } from '@/lib/prisma';
 
+// 빌드 타임 정적 생성 대신 요청 시 렌더링한다.
+// (최신 사용자 데이터 반영 + 빌드 단계 DB 의존 제거)
+export const dynamic = 'force-dynamic';
+
 export default async function UsersPage() {
   let users = [];
   let error = null;

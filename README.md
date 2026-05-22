@@ -143,6 +143,43 @@ npx prisma generate
 npx prisma studio
 ```
 
+## 🔄 CI/CD 파이프라인
+
+GitHub Actions를 사용해 코드 변경 → 빌드 검증 → 자동 배포를 자동화합니다.
+워크플로우 정의: [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml)
+
+### Trigger 규칙
+
+| 이벤트 | CI (빌드 검증) | CD (자동 배포) |
+| --- | :---: | :---: |
+| `main` 브랜치로 **PR** | ✅ | ❌ |
+| `main` 브랜치에 **push** (merge) | ✅ | ✅ |
+
+### 파이프라인 흐름
+
+```
+push/PR → [CI] checkout → setup-node(18) → npm ci → npm run build
+                                                          │
+                                      (main push & CI 성공 시에만)
+                                                          ▼
+   [CD] checkout → rsync로 코드 전송 → (서버) npm ci → npm run build → pm2 restart
+```
+
+- **CI (`ci` job)**: Node 18에서 의존성 설치 후 `npm run build`로 프로덕션 빌드가 깨지지 않는지 검증합니다. PR·push 모두에서 실행됩니다.
+- **CD (`deploy` job)**: `main` 브랜치 push이고 CI가 성공한 경우에만 실행됩니다. 조직 정책상 서버에서 private 레포를 `git pull` 할 수 없어, Actions가 checkout한 코드를 **rsync로 EC2에 직접 전송**한 뒤 서버에서 빌드하고 pm2 프로세스(`livith-admin`, 포트 3001)를 재시작합니다. `.env`·`node_modules`는 전송에서 제외해 서버 값을 보존합니다.
+
+### 필요한 GitHub Secrets
+
+저장소 **Settings → Secrets and variables → Actions** 에서 등록합니다.
+
+| Secret | 설명 | 예시 |
+| --- | --- | --- |
+| `EC2_HOST` | 배포 서버 호스트/IP | `43.200.16.103` |
+| `EC2_USERNAME` | SSH 접속 계정 | `ubuntu` |
+| `EC2_SSH_PRIVATE_KEY` | SSH 개인키 전체 내용 (`livith-key-new.pem`) | `-----BEGIN ...-----` |
+
+> 키 등록 예시: `gh secret set EC2_SSH_PRIVATE_KEY < ~/Documents/인증서/livith-key-new.pem`
+
 ## 🐛 문제 해결
 
 ### Prisma Client가 생성되지 않는 경우

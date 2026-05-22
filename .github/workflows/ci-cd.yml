@@ -1,0 +1,87 @@
+name: CI/CD Pipeline
+
+# Trigger 규칙
+# - main 브랜치에 push  -> CI(빌드 검증) 후 CD(자동 배포)까지 실행
+# - main 브랜치로 PR    -> CI(빌드 검증)만 실행 (배포는 하지 않음)
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ─────────────────────────────────────────────
+  # CI: 코드 변경 감지 시 의존성 설치 + 프로덕션 빌드 검증
+  # ─────────────────────────────────────────────
+  ci:
+    name: CI - Build Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (Next.js production build)
+        # Prisma Client 초기화를 위해 더미 DATABASE_URL 주입.
+        # 빌드 타임 DB 호출은 page 단에서 try/catch 처리되어 연결 실패해도 빌드는 통과한다.
+        env:
+          DATABASE_URL: mysql://user:password@localhost:3306/dummy
+        run: npm run build
+
+  # ─────────────────────────────────────────────
+  # CD: main 브랜치 push일 때만 EC2에 SSH 접속하여 무중단 재배포
+  # ─────────────────────────────────────────────
+  deploy:
+    name: CD - Deploy to EC2
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Sync code to EC2 (rsync)
+        # 조직 정책상 서버에서 private 레포 git pull이 불가하므로,
+        # Actions가 checkout한 코드를 rsync로 직접 전송한다.
+        # node_modules/.next는 서버에서 새로 빌드하고, .env는 서버 값 보존을 위해 제외.
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+        run: |
+          rsync -az --delete \
+            --exclude '.git' \
+            --exclude 'node_modules' \
+            --exclude '.next' \
+            --exclude '.env' \
+            -e "ssh -i ~/.ssh/id_rsa" \
+            ./ $EC2_USERNAME@$EC2_HOST:~/Livith-Admin/
+
+      - name: Build & (re)start on EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+        run: |
+          ssh -i ~/.ssh/id_rsa $EC2_USERNAME@$EC2_HOST "\
+            set -e && \
+            cd ~/Livith-Admin && \
+            npm ci && \
+            npm run build && \
+            (pm2 restart livith-admin || PORT=3001 pm2 start npm --name livith-admin -- start) && \
+            pm2 save"
