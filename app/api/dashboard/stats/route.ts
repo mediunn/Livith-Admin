@@ -113,7 +113,8 @@ export async function GET(request: NextRequest) {
       prisma.banners.findMany({
         take: PAGE_SIZE,
         skip: (bannersPage - 1) * PAGE_SIZE,
-        orderBy: { created_at: 'desc' },
+        // 순서 컬럼이 없어 id(고정 슬롯) 오름차순으로 정렬. 순서 변경은 행 내용 맞바꿈으로 처리.
+        orderBy: { id: 'asc' },
       }),
       prisma.md.findMany({
         take: PAGE_SIZE,

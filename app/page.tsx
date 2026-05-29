@@ -968,6 +968,38 @@ export default function DashboardPage() {
     setEditFormData(formData);
   };
 
+  // 배너 순서 변경: id는 고정, 현재 행과 인접 행의 "내용"을 서로 맞바꾼다.
+  const handleReorderBanner = async (items: any[], idx: number, direction: 'up' | 'down') => {
+    const neighborIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (neighborIdx < 0 || neighborIdx >= items.length) return;
+
+    const current = items[idx];
+    const neighbor = items[neighborIdx];
+
+    setLoadingTable('banners');
+    try {
+      const response = await fetch('/api/dashboard/banners/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idA: current.id, idB: neighbor.id }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to reorder');
+      }
+
+      await fetchStats();
+    } catch (error) {
+      toast({
+        title: '순서 변경 실패',
+        description: '배너 순서 변경 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingTable(null);
+    }
+  };
+
   const handleSaveEdit = async () => {
     if (!editModal) return;
 
@@ -1417,11 +1449,12 @@ export default function DashboardPage() {
       key: 'banners',
       name: 'Banners',
       icon: '🖼️',
+      reorderable: true,
       columns: ['ID', 'Title', 'Category', 'Content', 'Image', 'Created', 'Updated', ''],
       editFields: [
         { key: 'title', label: 'Title', type: 'text' },
         { key: 'category', label: 'Category', type: 'text' },
-        { key: 'content', label: 'Content', type: 'text' },
+        { key: 'content', label: 'Content', type: 'textarea' },
         { key: 'img_url', label: 'Image URL', type: 'text' },
       ],
       renderRow: (item: any) => (
@@ -1642,6 +1675,26 @@ export default function DashboardPage() {
                                   <tr key={idx} className="hover:bg-livith-black-70">
                                     {config.renderRow(item)}
                                     <td className="px-4 py-2 whitespace-nowrap">
+                                      {(config as any).reorderable && (
+                                        <>
+                                          <button
+                                            onClick={() => handleReorderBanner(tableData.recent!, idx, 'up')}
+                                            disabled={idx === 0 || loadingTable === config.key}
+                                            className="text-sm text-livith-black-50 hover:text-livith-yellow-60 leading-none disabled:opacity-30 disabled:cursor-not-allowed mr-2"
+                                            title="위로"
+                                          >
+                                            ▲
+                                          </button>
+                                          <button
+                                            onClick={() => handleReorderBanner(tableData.recent!, idx, 'down')}
+                                            disabled={idx === tableData.recent!.length - 1 || loadingTable === config.key}
+                                            className="text-sm text-livith-black-50 hover:text-livith-yellow-60 leading-none disabled:opacity-30 disabled:cursor-not-allowed mr-3"
+                                            title="아래로"
+                                          >
+                                            ▼
+                                          </button>
+                                        </>
+                                      )}
                                       <button
                                         onClick={() => handleEdit(config.key, item, config.editFields)}
                                         className="text-sm text-livith-black-50 hover:text-livith-black-30 leading-none"
@@ -1763,6 +1816,26 @@ export default function DashboardPage() {
                                   <tr key={idx} className="hover:bg-livith-black-70">
                                     {config.renderRow(item)}
                                     <td className="px-4 py-2 whitespace-nowrap">
+                                      {(config as any).reorderable && (
+                                        <>
+                                          <button
+                                            onClick={() => handleReorderBanner(tableData.recent!, idx, 'up')}
+                                            disabled={idx === 0 || loadingTable === config.key}
+                                            className="text-sm text-livith-black-50 hover:text-livith-yellow-60 leading-none disabled:opacity-30 disabled:cursor-not-allowed mr-2"
+                                            title="위로"
+                                          >
+                                            ▲
+                                          </button>
+                                          <button
+                                            onClick={() => handleReorderBanner(tableData.recent!, idx, 'down')}
+                                            disabled={idx === tableData.recent!.length - 1 || loadingTable === config.key}
+                                            className="text-sm text-livith-black-50 hover:text-livith-yellow-60 leading-none disabled:opacity-30 disabled:cursor-not-allowed mr-3"
+                                            title="아래로"
+                                          >
+                                            ▼
+                                          </button>
+                                        </>
+                                      )}
                                       <button
                                         onClick={() => handleEdit(config.key, item, config.editFields)}
                                         className="text-sm text-livith-black-50 hover:text-livith-black-30 leading-none"
@@ -1884,6 +1957,26 @@ export default function DashboardPage() {
                                   <tr key={idx} className="hover:bg-livith-black-70">
                                     {config.renderRow(item)}
                                     <td className="px-4 py-2 whitespace-nowrap">
+                                      {(config as any).reorderable && (
+                                        <>
+                                          <button
+                                            onClick={() => handleReorderBanner(tableData.recent!, idx, 'up')}
+                                            disabled={idx === 0 || loadingTable === config.key}
+                                            className="text-sm text-livith-black-50 hover:text-livith-yellow-60 leading-none disabled:opacity-30 disabled:cursor-not-allowed mr-2"
+                                            title="위로"
+                                          >
+                                            ▲
+                                          </button>
+                                          <button
+                                            onClick={() => handleReorderBanner(tableData.recent!, idx, 'down')}
+                                            disabled={idx === tableData.recent!.length - 1 || loadingTable === config.key}
+                                            className="text-sm text-livith-black-50 hover:text-livith-yellow-60 leading-none disabled:opacity-30 disabled:cursor-not-allowed mr-3"
+                                            title="아래로"
+                                          >
+                                            ▼
+                                          </button>
+                                        </>
+                                      )}
                                       <button
                                         onClick={() => handleEdit(config.key, item, config.editFields)}
                                         className="text-sm text-livith-black-50 hover:text-livith-black-30 leading-none"
