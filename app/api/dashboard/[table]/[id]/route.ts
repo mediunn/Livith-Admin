@@ -263,6 +263,7 @@ export async function PUT(
             category: body.category || null,
             content: body.content || null,
             img_url: body.img_url || null,
+            link_url: body.link_url || null,
             updated_at: new Date(),
           },
         });

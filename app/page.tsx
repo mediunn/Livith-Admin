@@ -1450,12 +1450,13 @@ export default function DashboardPage() {
       name: 'Banners',
       icon: '🖼️',
       reorderable: true,
-      columns: ['ID', 'Title', 'Category', 'Content', 'Image', 'Created', 'Updated', ''],
+      columns: ['ID', 'Title', 'Category', 'Content', 'Image', 'Link', 'Created', 'Updated', ''],
       editFields: [
         { key: 'title', label: 'Title', type: 'text' },
         { key: 'category', label: 'Category', type: 'text' },
         { key: 'content', label: 'Content', type: 'textarea' },
         { key: 'img_url', label: 'Image URL', type: 'text' },
+        { key: 'link_url', label: 'Link URL', type: 'text' },
       ],
       renderRow: (item: any) => (
         <>
@@ -1464,6 +1465,11 @@ export default function DashboardPage() {
           <td className="px-4 py-2 text-livith-black-30 whitespace-nowrap">{item.category || '-'}</td>
           <td className="px-4 py-2 text-livith-black-30 whitespace-nowrap">{item.content || '-'}</td>
           <td className="px-4 py-2 text-livith-black-30 whitespace-nowrap">{item.img_url ? '있음' : '-'}</td>
+          <td className="px-4 py-2 text-livith-black-30 whitespace-nowrap">
+            {item.link_url ? (
+              <a href={item.link_url} target="_blank" rel="noopener noreferrer" className="text-livith-yellow-60 hover:underline">링크</a>
+            ) : '-'}
+          </td>
           <td className="px-4 py-2 text-livith-black-30 text-sm whitespace-nowrap">{formatDate(item.created_at)}</td>
           <td className="px-4 py-2 text-livith-black-30 text-sm whitespace-nowrap">{formatDate(item.updated_at)}</td>
         </>
