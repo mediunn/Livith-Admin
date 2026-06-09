@@ -59,6 +59,10 @@ export function SetlistCreator() {
   const [newSongArtist, setNewSongArtist] = useState('');
   const [newSongYoutubeUrl, setNewSongYoutubeUrl] = useState('');
 
+  // Markdown bulk import
+  const [showMarkdownImport, setShowMarkdownImport] = useState(false);
+  const [markdownInput, setMarkdownInput] = useState('');
+
   // Calendar modal
   const [showCalendar, setShowCalendar] = useState<'start' | 'end' | null>(null);
   const [calendarDate, setCalendarDate] = useState(new Date());
@@ -297,6 +301,137 @@ export function SetlistCreator() {
     }]);
     setNewSongTitle('');
     setNewSongYoutubeUrl('');
+  };
+
+  // Resolve a valid 11-char YouTube ID from an "ID" cell and/or a "link" cell
+  const resolveYoutubeId = (...candidates: (string | undefined)[]): string => {
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      const id = extractYoutubeId(candidate.trim());
+      if (/^[a-zA-Z0-9_-]{11}$/.test(id)) return id;
+    }
+    return '';
+  };
+
+  // Parse a setlist markdown document (skill output format) into title/dates/songs
+  const parseMarkdownSetlist = (md: string) => {
+    const lines = md.split(/\r?\n/);
+    let title = '';
+    let startDate = '';
+    let endDate = '';
+    const parsedSongs: { title: string; youtube_id?: string }[] = [];
+
+    // Column indices (defaults match the skill template: | # | 곡명 | YouTube ID | 링크 | 비고 |)
+    const colIdx = { title: 1, id: 2, link: 3 };
+
+    const splitRow = (line: string): string[] => {
+      const cells = line.split('|').map((c) => c.trim());
+      if (cells.length && cells[0] === '') cells.shift();
+      if (cells.length && cells[cells.length - 1] === '') cells.pop();
+      return cells;
+    };
+    const isSeparator = (cells: string[]) =>
+      cells.length > 0 && cells.every((c) => c === '' || /^:?-+:?$/.test(c));
+    const isHeader = (cells: string[]) =>
+      cells.some((c) => c.includes('곡명') || /youtube/i.test(c) || c.includes('링크') || c.includes('비고'));
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line) continue;
+
+      // Meta lines: "공연: ..." (tour/title), "일자: ..." (date or range)
+      if (line.startsWith('공연:')) {
+        title = line.slice('공연:'.length).trim();
+        continue;
+      }
+      if (line.startsWith('일자:')) {
+        const dates = line.match(/\d{4}[-.]\d{2}[-.]\d{2}/g);
+        if (dates && dates.length > 0) {
+          startDate = dates[0].replace(/\./g, '-');
+          endDate = (dates[1] || dates[0]).replace(/\./g, '-');
+        }
+        continue;
+      }
+
+      // Table rows
+      if (line.startsWith('|')) {
+        const cells = splitRow(line);
+        if (isSeparator(cells)) continue;
+        if (isHeader(cells)) {
+          cells.forEach((c, i) => {
+            const lc = c.toLowerCase();
+            if (c.includes('곡명')) colIdx.title = i;
+            else if (lc.includes('youtube')) colIdx.id = i;
+            else if (c.includes('링크') || lc.includes('link')) colIdx.link = i;
+          });
+          continue;
+        }
+
+        const songTitle = (cells[colIdx.title] || '').trim();
+        if (!songTitle || songTitle === '#' || songTitle === '—' || songTitle === '-') continue;
+
+        const youtubeId = resolveYoutubeId(cells[colIdx.id], cells[colIdx.link]);
+        parsedSongs.push({ title: songTitle, youtube_id: youtubeId || undefined });
+      }
+    }
+
+    return { title, startDate, endDate, songs: parsedSongs };
+  };
+
+  const handleImportMarkdown = () => {
+    if (!markdownInput.trim()) {
+      toast({
+        title: '마크다운 입력 필요',
+        description: '셋리스트 마크다운을 붙여넣어주세요.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const parsed = parseMarkdownSetlist(markdownInput);
+
+    if (parsed.songs.length === 0) {
+      toast({
+        title: '곡을 찾지 못함',
+        description: '마크다운 테이블에서 곡을 인식하지 못했습니다. 형식을 확인해주세요.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Fill setlist meta if parsed (user can still edit afterwards)
+    if (parsed.title) setSetlistTitle(parsed.title);
+    if (parsed.startDate) setSetlistStartDate(parsed.startDate);
+    if (parsed.endDate) setSetlistEndDate(parsed.endDate);
+
+    const artist = newSongArtist || selectedConcert?.artist || '';
+    const existingTitles = new Set(songs.map((s) => s.title.toLowerCase()));
+    const toAdd: Song[] = [];
+    let skipped = 0;
+
+    for (const ps of parsed.songs) {
+      const key = ps.title.toLowerCase();
+      if (existingTitles.has(key)) {
+        skipped++;
+        continue;
+      }
+      existingTitles.add(key);
+      toAdd.push({
+        title: ps.title,
+        artist,
+        isNew: true,
+        youtube_id: ps.youtube_id,
+      });
+    }
+
+    setSongs([...songs, ...toAdd]);
+    setMarkdownInput('');
+    setShowMarkdownImport(false);
+
+    toast({
+      title: '마크다운 불러오기 완료',
+      description: `${toAdd.length}곡 추가됨${skipped > 0 ? ` (중복 ${skipped}곡 제외)` : ''}.`,
+    });
   };
 
   const handleRemoveSong = (index: number) => {
@@ -794,6 +929,40 @@ export function SetlistCreator() {
                 <label className="block text-livith-white font-semibold mb-2">
                   2. 곡 추가
                 </label>
+
+                {/* Markdown bulk import */}
+                <div className="mb-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowMarkdownImport(!showMarkdownImport)}
+                    className="w-full px-4 py-3 bg-livith-black-90 border border-livith-yellow-60/40 rounded text-left text-livith-yellow-60 hover:border-livith-yellow-60 transition-all flex items-center justify-between"
+                  >
+                    <span>📋 마크다운으로 일괄 추가 (셋리스트 스킬 결과 붙여넣기)</span>
+                    <span>{showMarkdownImport ? '▲' : '▼'}</span>
+                  </button>
+                  {showMarkdownImport && (
+                    <div className="mt-2 space-y-2 slide-up">
+                      <textarea
+                        value={markdownInput}
+                        onChange={(e) => setMarkdownInput(e.target.value)}
+                        placeholder={'셋리스트 마크다운을 붙여넣으세요.\n\n공연: ...\n일자: 2026-05-10\n| # | 곡명 | YouTube ID | 링크 | 비고 |\n| 1 | Editorial | mN3MEypzw2A | https://youtu.be/mN3MEypzw2A | Official Audio |'}
+                        rows={8}
+                        className="w-full px-4 py-3 bg-livith-black-90 border border-livith-black-50 rounded text-livith-white text-sm font-mono focus:outline-none focus:border-livith-yellow-60 resize-y"
+                      />
+                      <div className="flex items-center justify-between">
+                        <p className="text-livith-black-30 text-xs">
+                          곡명·YouTube ID를 자동 인식해 아래 목록에 추가합니다. 아티스트는 선택한 콘서트 기준으로 설정됩니다.
+                        </p>
+                        <Button
+                          onClick={handleImportMarkdown}
+                          className="bg-livith-yellow-60 text-livith-black-100 hover:bg-livith-yellow-30 whitespace-nowrap ml-3"
+                        >
+                          불러오기
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* Button to open song modal */}
                 <button
